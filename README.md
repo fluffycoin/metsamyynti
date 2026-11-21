@@ -19,11 +19,23 @@ alustavan hinta-arvion, ja täyttää myynti-ilmoituksen valmiiksi.
 | Kiinteistön rajat | MML kiinteistötietojen avoin rajapinta | maksuton API-avain (`MML_API_KEY`) |
 | Metsäkuviot (puusto, ikä, puulajit, tilavuus) | Metsäkeskus, avoin metsävaratieto | avoin, CC BY 4.0 |
 | Kantohinnat viikoittain | Luke, PxWeb | avoin |
-| Kaavat | Kuntien WFS-rajapinnat (pilotit) | avoin / kuntakohtainen |
+| Kaavat | Kuntien rajapinnat (pilotit) + Syken Ryhti (koko Suomi) | avoin |
 | Omistajatiedot (lainhuuto) | MML kiinteistötietopalvelu | **käyttölupa** (hakemus valmisteilla) |
 | Kauppahinnat | MML kauppahintarekisteri | **käyttölupa**, maksullinen |
 
-Kaavalähteiden tilanne pilottikunnittain: `supabase/functions/_shared/sources/kaavat/index.ts`.
+Kaavalähteet pilottikunnittain (tarkemmin `supabase/functions/_shared/sources/kaavat/index.ts`):
+
+| Kunta | Mitä saadaan |
+|---|---|
+| Tampere | kaavayksiköt: käyttötarkoitus, rakennusoikeus, tehokkuus, kerrosluku |
+| Turku | asemakaava-alueet, aluevaraukset (käyttötarkoitus), yleiskaava |
+| Tuusula | asemakaava-alueet + määräys-PDF, kaavarekisterin kaavayksiköt, osayleiskaavat |
+| Vantaa | koko asemakaavahakemisto + määräyslinkit, osa kaavayksiköistä |
+| Espoo | asemakaavahakemisto + määräys-PDF (tarkemmat tasot vaativat tunnukset) |
+| Kerava, Sipoo, Pirkkala | ei avointa rajapintaa, vain Ryhti |
+| Muut kunnat | Ryhti (kattavuus kasvaa kuntien viedessä kaavoja) |
+
+Kaikki kunnat ja niiden Luken kantohinta-alueet ovat taulussa `municipalities`.
 
 ## Rajapinnat (Edge Functions)
 
