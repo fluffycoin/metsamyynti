@@ -39,7 +39,7 @@ Kaikki kunnat ja niiden Luken kantohinta-alueet ovat taulussa `municipalities`.
 
 ## Rajapinnat (Edge Functions)
 
-- `GET /functions/v1/property-summary?kt=837-60-5854-2` – kiinteistön kooste (rajat, kuviot, kaavat, kantohinnat). Tulos tallennetaan kantaan ja haetaan uudelleen 30 päivän välein (`&refresh=1` pakottaa).
+- `GET /functions/v1/property-summary?kt=837-585-11-181` – kiinteistön kooste (rajat, kuviot, kaavat, kantohinnat). Tulos tallennetaan kantaan ja haetaan uudelleen 30 päivän välein (`&refresh=1` pakottaa). Määräala: `?kt=224-404-1-30-M501`; jos määräalan rajoja ei ole rekisterissä, kooste tulee emokiinteistöltä ja `notes` kertoo sen.
 - `POST /functions/v1/sync-stumpage-prices` – päivittää Luken kantohinnat; ajastetaan viikoittain.
 
 ## Käyttöönotto Supabaseen
@@ -70,5 +70,7 @@ deno test supabase/functions/_shared/
 # Päästä päähän: PostGIS-kanta + oikeat rajapinnat, testineliö kiinteistön rajana
 psql -d mm -f supabase/tests/auth_stub.sql
 for f in supabase/migrations/*.sql; do psql -d mm -f $f; done
-DATABASE_URL=postgres://postgres@localhost:5432/mm deno run -A scripts/smoke-test.ts 837 333000 6816500 500
+DATABASE_URL=postgres://postgres@localhost:5432/mm MML_API_KEY=... deno run -A scripts/smoke-test.ts 837-585-11-181
+# ilman avainta: suorakaide rajana
+DATABASE_URL=postgres://postgres@localhost:5432/mm deno run -A scripts/smoke-test.ts 837 327000 6815000 400
 ```
