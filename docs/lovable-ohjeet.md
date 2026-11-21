@@ -119,9 +119,7 @@ arvo" -merkillä.
 
 Lisää sivulle nappi "Olen kiinnostunut", myös kun kohde ei ole myynnissä. Kirjautumaton ohjataan
 rekisteröitymään. Lomakkeessa on viesti, valinnainen hintatarjous ja valinta "Jaa yhteystietoni"
-(nimi ja puhelin). Hae ensin kiinteistön id: supabase.from('properties').select('id')
-.eq('kiinteistotunnus', summary.kiinteistotunnus) ja määräalalle .eq('maarala_no', summary.maarala_no),
-muuten .is('maarala_no', null). Kutsu sitten rpc('express_interest', { p_property_id: id,
+(nimi ja puhelin). Kutsu rpc('express_interest', { p_property_id: summary.id,
 p_message, p_offer_eur, p_share_contact, p_contact_name, p_contact_phone }). Onnistuessa näytä: "Viesti tallennettu. Omistaja näkee sen sovelluksessa.
 Jos hän ei vielä ole palvelussa, viesti odottaa häntä."
 ```
