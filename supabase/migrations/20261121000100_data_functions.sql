@@ -17,7 +17,7 @@ begin
     substr(p_kiinteistotunnus, 1, 3),
     p_name,
     p_maarala_no,
-    st_multi(st_makevalid(st_setsrid(st_geomfromgeojson(p_geojson::text), 3067)))::geometry(MultiPolygon, 3067),
+    st_multi(st_collectionextract(st_makevalid(st_force2d(st_setsrid(st_geomfromgeojson(p_geojson::text), 3067))), 3))::geometry(MultiPolygon, 3067),
     now()
   )
   on conflict (kiinteistotunnus, maarala_no) do update
@@ -43,7 +43,7 @@ begin
     select
       f->>'id' as stand_key,
       f->'properties' as p,
-      st_setsrid(st_geomfromgeojson((f->'geometry')::text), 3067) as g
+      st_force2d(st_setsrid(st_geomfromgeojson((f->'geometry')::text), 3067)) as g
     from jsonb_array_elements(p_features) f
   ),
   clipped as (
@@ -98,6 +98,21 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_count integer;
 begin
+  -- Sama kohde voi tulla lähteestä useana palana (tai sivutuksessa kahdesti): yhdistetään.
+  with src as (
+    select r,
+           r->>'source_layer' as source_layer,
+           r->>'source_id' as source_id,
+           st_collectionextract(st_makevalid(st_force2d(
+             st_setsrid(st_geomfromgeojson((r->'geometry')::text), 3067))), 3) as g
+    from jsonb_array_elements(p_rows) r
+  ),
+  merged as (
+    select source_layer, source_id, (array_agg(r))[1] as r, st_multi(st_union(g)) as g
+    from src
+    where not st_isempty(g)
+    group by source_layer, source_id
+  )
   insert into zoning_areas (
     municipality_code, level, source_layer, source_id, plan_name, plan_id, approved_on,
     designation, efficiency, building_right_m2, regulations, geom, raw, fetched_at
@@ -105,8 +120,8 @@ begin
   select
     p_municipality_code,
     (r->>'level')::plan_level,
-    r->>'source_layer',
-    r->>'source_id',
+    source_layer,
+    source_id,
     r->>'plan_name',
     r->>'plan_id',
     (r->>'approved_on')::date,
@@ -114,10 +129,10 @@ begin
     (r->>'efficiency')::numeric,
     (r->>'building_right_m2')::numeric,
     r->>'regulations',
-    st_multi(st_collectionextract(st_makevalid(st_setsrid(st_geomfromgeojson((r->'geometry')::text), 3067)), 3)),
+    st_multi(st_collectionextract(g, 3)),
     coalesce(r->'raw', '{}'),
     now()
-  from jsonb_array_elements(p_rows) r
+  from merged
   on conflict (municipality_code, source_layer, source_id) do update
     set plan_name = excluded.plan_name,
         plan_id = excluded.plan_id,

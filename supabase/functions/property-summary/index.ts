@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       }),
       fetchZoning(kt.municipalityCode, bbox).catch((e) => {
         notes.push(`Kaavatietojen haku epäonnistui: ${e.message}`);
-        return { rows: [], note: null };
+        return { rows: [], notes: [] as string[] };
       }),
     ]);
 
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     });
     if (stErr) notes.push(`Kuvioiden tallennus epäonnistui: ${stErr.message}`);
 
-    if (zoning.note) notes.push(zoning.note);
+    notes.push(...zoning.notes);
     if (zoning.rows.length) {
       const { error: zErr } = await db.rpc("upsert_zoning_areas", {
         p_municipality_code: kt.municipalityCode,

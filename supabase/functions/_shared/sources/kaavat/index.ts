@@ -1,47 +1,58 @@
 /**
- * Pilottikuntien kaavalähteet. Kunta, jolla ei vielä ole lähdettä, palauttaa
- * tyhjän listan ja selityksen; ilmoitukseen tulee silloin ohje tarkistaa kaava kunnasta.
+ * Kaavalähteet. Jokaiselle kunnalle haetaan Ryhdin valtakunnallinen kaavahakemisto ja
+ * lisäksi kunnan oma rajapinta, jos sellainen on. Tilanne 21.11.2026:
  *
- * Tilanne 21.11.2026:
- *   Tampere  ✓ avoin
- *   Vantaa   osittain: avoin taso kaava:kaavayksikot_sample sisältää vain ~1 100 kaavayksikköä;
- *            koko ajantasa-asemakaavan rajapinta selvitettävänä
- *   Espoo    rajapinta vaatii tunnukset (kartat.espoo.fi) -> haetaan käyttölupa
- *   Turku, Kerava, Sipoo, Tuusula, Pirkkala -> lähteet selvitettävänä;
- *   vaihtoehtona SYKE:n Ryhti-palvelu, johon kunnat vievät kaavoja tietomallimuodossa.
+ *   Tampere  ✓ asemakaavan kaavayksiköt ja käyttötarkoitusalueet
+ *   Turku    ✓ asemakaava-alueet, aluevaraukset (käyttötarkoitus) ja yleiskaava
+ *   Tuusula  ✓ asemakaava-alueet, kaavarekisteri ja lainvoimaiset osayleiskaavat
+ *   Vantaa   ✓ koko asemakaavahakemisto + osa kaavayksiköistä (avoin otos)
+ *   Espoo    ✓ asemakaavahakemisto (avoin); yksityiskohtaiset tasot vaativat tunnukset
+ *   Kerava, Sipoo, Pirkkala: ei löydettyä avointa rajapintaa, vain Ryhti
  */
 import type { BBox } from "../../wfs.ts";
+import { espoo } from "./espoo.ts";
+import { fetchRyhti } from "./ryhti.ts";
 import { tampere } from "./tampere.ts";
+import { turku } from "./turku.ts";
+import { tuusula } from "./tuusula.ts";
 import { vantaa } from "./vantaa.ts";
 import type { ZoningRow, ZoningSource } from "./types.ts";
 
-export const ZONING_SOURCES: Record<string, ZoningSource> = {
-  [tampere.municipalityCode]: tampere,
-  [vantaa.municipalityCode]: vantaa,
-};
+export const ZONING_SOURCES: Record<string, ZoningSource> = Object.fromEntries(
+  [tampere, vantaa, espoo, turku, tuusula].map((s) => [s.municipalityCode, s]),
+);
 
 export const PENDING_SOURCES: Record<string, string> = {
-  "049": "Espoon kaavarajapinta vaatii käyttäjätunnukset; käyttölupa haetaan.",
-  "853": "Turun kaavarajapinta selvitettävänä.",
-  "245": "Keravan kaavarajapinta selvitettävänä.",
-  "753": "Sipoon kaavarajapinta selvitettävänä.",
-  "858": "Tuusulan kaavarajapinta selvitettävänä.",
-  "604": "Pirkkalan kaavarajapinta selvitettävänä.",
+  "245": "Keravalta ei ole avointa kaavarajapintaa; kaavatieto vain Ryhdistä, jos kunta on vienyt sen sinne.",
+  "753": "Sipoolta ei ole avointa kaavarajapintaa; kaavatieto vain Ryhdistä, jos kunta on vienyt sen sinne.",
+  "604": "Pirkkalalta ei ole avointa kaavarajapintaa; kaavatieto vain Ryhdistä, jos kunta on vienyt sen sinne.",
 };
 
 export async function fetchZoning(
   municipalityCode: string,
   bbox: BBox,
-): Promise<{ rows: ZoningRow[]; note: string | null }> {
+): Promise<{ rows: ZoningRow[]; notes: string[] }> {
   const src = ZONING_SOURCES[municipalityCode];
+  const notes: string[] = [];
+  const [own, ryhti] = await Promise.all([
+    src
+      ? src.fetch(bbox).catch((e) => {
+        notes.push(`${src.municipalityName}: kaavarajapinnan haku epäonnistui (${(e as Error).message}).`);
+        return [] as ZoningRow[];
+      })
+      : Promise.resolve([] as ZoningRow[]),
+    fetchRyhti(municipalityCode, bbox).catch((e) => {
+      notes.push(`Ryhti: kaavahakemiston haku epäonnistui (${(e as Error).message}).`);
+      return [] as ZoningRow[];
+    }),
+  ]);
   if (!src) {
-    return {
-      rows: [],
-      note: PENDING_SOURCES[municipalityCode] ??
-        "Kunnan kaavatietoja ei vielä haeta automaattisesti. Tarkista kaavatilanne kunnan kaavoituksesta.",
-    };
+    notes.push(
+      PENDING_SOURCES[municipalityCode] ??
+        "Kunnan omaa kaavarajapintaa ei vielä haeta; kaavatieto vain Ryhdistä. Tarkista kaavatilanne kunnan kaavoituksesta.",
+    );
   }
-  return { rows: await src.fetch(bbox), note: null };
+  return { rows: [...own, ...ryhti], notes };
 }
 
 export type { ZoningRow, ZoningSource };

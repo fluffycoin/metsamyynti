@@ -40,5 +40,5 @@ const [{ property_summary: s }] = await sql`select property_summary(${kt})`;
 s.geometry = "(lyhennetty)";
 s.forest.stands = s.forest.stands.slice(0, 3);
 s.zoning = s.zoning.slice(0, 5);
-console.log(JSON.stringify({ ...s, zoning_note: zoning.note }, null, 2));
+console.log(JSON.stringify({ ...s, zoning_notes: zoning.notes }, null, 2));
 await sql.end();

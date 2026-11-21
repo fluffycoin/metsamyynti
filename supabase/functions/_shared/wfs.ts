@@ -1,4 +1,5 @@
 /** Yhteiset apufunktiot WFS-/OGC API -rajapinnoille. */
+import { gmlException, parseGmlFeatures } from "./gml.ts";
 
 export type BBox = [number, number, number, number]; // minx, miny, maxx, maxy (EPSG:3067)
 
@@ -81,4 +82,65 @@ export function bboxOf(geometry: { coordinates: unknown }, buffer = 0): BBox {
   };
   walk(geometry.coordinates);
   return [minx - buffer, miny - buffer, maxx + buffer, maxy + buffer];
+}
+
+/**
+ * WFS 1.1.0 GetFeature GML-muodossa (Trimble/Tekla- ja Spatial Web -palvelimet, jotka eivät
+ * tarjoa GeoJSONia). bbox annetaan palvelimen omassa koordinaatistossa ilman srs-päätettä,
+ * koska Tekla ei tue sitä. Palauttaa featuret lähteen koordinaatistossa.
+ */
+export async function wfs1GetGmlFeatures(opts: {
+  endpoint: string;
+  typeName: string;
+  bbox: BBox;
+  maxFeatures?: number;
+  timeoutMs?: number;
+}): Promise<Feature[]> {
+  const u = new URL(opts.endpoint);
+  u.searchParams.set("service", "WFS");
+  u.searchParams.set("version", "1.1.0");
+  u.searchParams.set("request", "GetFeature");
+  u.searchParams.set("typeName", opts.typeName);
+  u.searchParams.set("maxFeatures", String(opts.maxFeatures ?? 2000));
+  u.searchParams.set("bbox", opts.bbox.map((v) => v.toFixed(1)).join(","));
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 60_000);
+  try {
+    const res = await fetch(u.toString(), { signal: ctrl.signal });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${opts.typeName}`);
+    const exc = gmlException(text);
+    if (exc) throw new Error(`${opts.typeName}: ${exc}`);
+    return parseGmlFeatures(text);
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** OGC API Features -haku bbox-rajauksella EPSG:3067:ssä, sivuttaen. */
+export async function ogcApiItems(opts: {
+  collectionUrl: string;
+  bbox: BBox;
+  params?: Record<string, string>;
+  pageSize?: number;
+  maxFeatures?: number;
+}): Promise<Feature[]> {
+  const crs = "http://www.opengis.net/def/crs/EPSG/0/3067";
+  const pageSize = opts.pageSize ?? 500;
+  const max = opts.maxFeatures ?? 5000;
+  const out: Feature[] = [];
+  for (let offset = 0; offset < max; offset += pageSize) {
+    const u = new URL(`${opts.collectionUrl}/items`);
+    u.searchParams.set("f", "json");
+    u.searchParams.set("limit", String(pageSize));
+    u.searchParams.set("offset", String(offset));
+    u.searchParams.set("crs", crs);
+    u.searchParams.set("bbox-crs", crs);
+    u.searchParams.set("bbox", opts.bbox.join(","));
+    for (const [k, v] of Object.entries(opts.params ?? {})) u.searchParams.set(k, v);
+    const fc = await fetchJson<FeatureCollection>(u.toString());
+    out.push(...fc.features);
+    if (fc.features.length < pageSize) break;
+  }
+  return out;
 }

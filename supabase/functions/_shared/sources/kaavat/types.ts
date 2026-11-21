@@ -47,3 +47,13 @@ export const hrefOf = (v: unknown): string | null => {
   const m = String(v ?? "").match(/href="([^"]+)"/);
   return m ? m[1] : null;
 };
+
+/** Ensimmäinen arvo, jos ominaisuus toistuu (GML-listat). */
+export const first = (v: unknown): string | null => {
+  const x = Array.isArray(v) ? v.find((e) => e !== null && e !== "") : v;
+  return x === null || x === undefined || x === "" ? null : String(x);
+};
+
+/** Yhdistää ei-tyhjät lauseet. */
+export const sentences = (...parts: (string | null | undefined | false)[]): string | null =>
+  parts.filter(Boolean).join(" ") || null;
