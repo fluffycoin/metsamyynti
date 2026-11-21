@@ -1,2 +1,62 @@
-# metsamyynti
-New project for metsämyynti
+# Metsämyynti
+
+Palvelu, jossa tontin, metsätilan tai pellon omistaja voi myydä kiinteistönsä ilman välittäjää.
+Kiinteistötunnuksen perusteella palvelu hakee automaattisesti rajat, puuston, kaavatiedot ja
+alustavan hinta-arvion, ja täyttää myynti-ilmoituksen valmiiksi.
+
+## Rakenne
+
+| Osa | Missä | Kuka |
+|---|---|---|
+| Käyttöliittymä | Lovable (Supabasen päällä) | Eetu |
+| Tietokanta (Postgres + PostGIS) | `supabase/migrations/` | tämä repo |
+| Datahaut ja laskenta (Edge Functions, Deno) | `supabase/functions/` | tämä repo |
+
+## Datalähteet
+
+| Tieto | Lähde | Ehto |
+|---|---|---|
+| Kiinteistön rajat | MML kiinteistötietojen avoin rajapinta | maksuton API-avain (`MML_API_KEY`) |
+| Metsäkuviot (puusto, ikä, puulajit, tilavuus) | Metsäkeskus, avoin metsävaratieto | avoin, CC BY 4.0 |
+| Kantohinnat viikoittain | Luke, PxWeb | avoin |
+| Kaavat | Kuntien WFS-rajapinnat (pilotit) | avoin / kuntakohtainen |
+| Omistajatiedot (lainhuuto) | MML kiinteistötietopalvelu | **käyttölupa** (hakemus valmisteilla) |
+| Kauppahinnat | MML kauppahintarekisteri | **käyttölupa**, maksullinen |
+
+Kaavalähteiden tilanne pilottikunnittain: `supabase/functions/_shared/sources/kaavat/index.ts`.
+
+## Rajapinnat (Edge Functions)
+
+- `GET /functions/v1/property-summary?kt=837-60-5854-2` – kiinteistön kooste (rajat, kuviot, kaavat, kantohinnat). Tulos tallennetaan kantaan ja haetaan uudelleen 30 päivän välein (`&refresh=1` pakottaa).
+- `POST /functions/v1/sync-stumpage-prices` – päivittää Luken kantohinnat; ajastetaan viikoittain.
+
+## Käyttöönotto Supabaseen
+
+```bash
+supabase link --project-ref <projekti>
+supabase db push                       # migraatiot
+supabase secrets set MML_API_KEY=...   # MML:n API-avain
+supabase functions deploy property-summary sync-stumpage-prices
+```
+
+Viikoittainen kantohintapäivitys (SQL-editorissa, pg_cron + pg_net päälle):
+
+```sql
+select cron.schedule('kantohinnat', '0 6 * * 1', $$
+  select net.http_post(
+    url := 'https://<projekti>.supabase.co/functions/v1/sync-stumpage-prices',
+    headers := jsonb_build_object('Authorization', 'Bearer <service-role-avain>')
+  ) $$);
+```
+
+## Testaus paikallisesti
+
+```bash
+# Yksikkötestit
+deno test supabase/functions/_shared/
+
+# Päästä päähän: PostGIS-kanta + oikeat rajapinnat, testineliö kiinteistön rajana
+psql -d mm -f supabase/tests/auth_stub.sql
+for f in supabase/migrations/*.sql; do psql -d mm -f $f; done
+DATABASE_URL=postgres://postgres@localhost:5432/mm deno run -A scripts/smoke-test.ts 837 333000 6816500 500
+```
