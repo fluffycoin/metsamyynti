@@ -205,6 +205,7 @@ language sql stable security definer set search_path = public as $$
       and sp.week = (select max(week) from stumpage_prices where price_area = pr.luke_price_area)
   )
   select case when not exists (select 1 from pr) then null else jsonb_build_object(
+    'id', pr.id,
     'kiinteistotunnus', pr.kiinteistotunnus,
     'display_id', pr.display_id,
     'name', pr.name,
