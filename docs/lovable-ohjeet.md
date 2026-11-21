@@ -1,99 +1,212 @@
-# Lovable-ohjeet: käyttäjät, myynti ja kiinnostukset
+# Prototyypin käyttöönotto ja Lovable, askel askeleelta
 
-Tässä ohjeessa käyttöliittymä rakennetaan Lovablella tämän repon Supabase-taustan päälle.
-Rajapinnan tarkka kuvaus on tiedostossa [kayttajat-api.md](kayttajat-api.md).
+Tämä ohje on tehty niin, ettei sinun tarvitse koodata eikä käyttää komentoriviä. Tausta
+(tietokanta ja palvelinfunktiot) julkaistaan GitHubista automaattisesti Supabaseen, ja Lovable
+rakentaa käyttöliittymän sen päälle. Tarkat rajapinnat löytyvät tiedostoista
+[kayttajat-api.md](kayttajat-api.md) ja [hinta-arvio-api.md](hinta-arvio-api.md).
 
-## A. Kerran: Supabase-projektin käyttöönotto
+## Vaihe 1. Yhdistä pull requestit GitHubissa (5 min)
 
-1. Luo Supabase-projekti (tai käytä Lovablen luomaa) ja yhdistä se Lovableen.
-2. Aja migraatiot ja julkaise funktiot koneelta, jossa on Supabase CLI:
+Avaa https://github.com/fluffycoin/metsamyynti/pulls ja yhdistä tässä järjestyksessä. Avaa PR,
+paina **Merge pull request** ja sitten **Confirm merge**:
 
-   ```bash
-   supabase link --project-ref <projekti>
-   supabase db push
-   supabase functions deploy strong-auth-start send-emails
-   supabase functions deploy strong-auth-callback strong-auth-jwks --no-verify-jwt
-   supabase secrets set STRONG_AUTH_MODE=mock ENVIRONMENT=development \
-     STRONG_AUTH_REDIRECT_URI=https://<projekti>.supabase.co/functions/v1/strong-auth-callback \
-     ALLOWED_RETURN_ORIGINS=https://<sovellus>.lovable.app,https://<esikatselu-domain>
-   ```
+1. **#3** Vaihe 1: kiinteistöjen datataulut ja datahaut
+2. **#2** Käyttäjät, vahva tunnistus, omistajuus ja kiinnostukset
+3. **#4** Vaihe 2: hinta-arvio ja "Luo alustava myynti-ilmoitus"
+4. **#1** Lupahakemukset ja sopimuspohjat (pelkkiä dokumentteja, voi yhdistää milloin vain)
 
-3. Supabasen Authentication-asetuksissa: Email-kirjautuminen päälle, "Confirm email" päälle ja
-   Site URL sekä Redirect URLs osoittamaan Lovable-sovellukseen.
-4. Sähköposti-ilmoitukset (valinnainen): luo Resend-tili, aseta
-   `supabase secrets set RESEND_API_KEY=... EMAIL_FROM="Metsämyynti <ilmoitukset@domain.fi>" APP_URL=https://<sovellus>`
-   ja ajasta lähetys SQL-editorissa (pg_cron ja pg_net päälle):
+Jos GitHub ilmoittaa ristiriidasta (conflict), älä ratkaise sitä itse. Kerro minulle, niin korjaan sen.
 
-   ```sql
-   select cron.schedule('sahkopostit', '*/5 * * * *', $$
-     select net.http_post(
-       url := 'https://<projekti>.supabase.co/functions/v1/send-emails',
-       headers := jsonb_build_object('Authorization', 'Bearer <service-role-avain>')) $$);
-   ```
+## Vaihe 2. Luo Supabase-projekti (5 min)
 
-Mock-tilassa vahva tunnistus näyttää testihenkilölomakkeen, joten koko prototyypin voi testata
-ilman tunnistusvälittäjää. Iduran testitilaan siirrytään kohdan C mukaan.
+1. Kirjaudu osoitteessa https://supabase.com ja valitse **New project**.
+2. Nimi `metsamyynti` ja alue **North EU (Stockholm)**. Keksi tietokannan salasana ja **tallenna
+   se**, koska tarvitset sitä vaiheessa 3.
+3. Kun projekti on valmis, avaa **Project Settings → General** ja kopioi **Project ID**
+   (lyhyt kirjainsarja). Se on projektin tunnus.
+4. Avaa oikeasta yläkulmasta oma profiili, sitten **Account → Access Tokens → Generate new token**.
+   Anna tunnukselle nimeksi `github` ja kopioi se talteen.
 
-## B. Lovable-promptit
+## Vaihe 3. Anna GitHubille lupa julkaista Supabaseen (3 min)
 
-Liitä ensin tämä taustaksi (yksi kerta):
+Avaa https://github.com/fluffycoin/metsamyynti/settings/secrets/actions ja lisää **New repository
+secret** -napilla kolme salaisuutta:
 
-> Sovellus on suomenkielinen kiinteistöjen (metsätilat, pellot, rakentamattomat tontit)
-> myyntialusta ilman välittäjää. Tausta on valmis Supabasessa, eikä tietokantaa saa muuttaa. Käytä
-> vain olemassa olevia tauluja, RPC-funktioita ja Edge Functioneita, jotka on kuvattu tiedostossa
-> docs/kayttajat-api.md. Näytä virheissä `error.message` käyttäjälle sellaisenaan ja ohjaa
-> `error.hint`-koodin perusteella (esim. `TUNNISTAUDU_UUDELLEEN` → vahva tunnistus). Tumma, selkeä
-> ulkoasu, kartta keskeisenä.
+| Name | Secret |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | vaiheen 2.4 tunnus |
+| `SUPABASE_PROJECT_REF` | vaiheen 2.3 Project ID |
+| `SUPABASE_DB_PASSWORD` | vaiheen 2.2 salasana |
 
-Sitten näkymä kerrallaan:
+Avaa sitten **Actions → Deploy Supabase → Run workflow → Run workflow**. Noin kahden minuutin
+kuluttua rivin eteen pitäisi tulla vihreä ✓. Jos tulee punainen ✗, kerro minulle. Tästä eteenpäin
+julkaisu tapahtuu itsestään aina, kun PR yhdistetään.
 
-1. **Tili.** "Tee rekisteröityminen ja kirjautuminen Supabase Authilla (sähköposti + salasana ja
-   magic link). Rekisteröinnissä kysytään nimimerkki (`options.data.display_name`). Yläpalkissa on
-   kellokuvake, jossa näkyy lukemattomien ilmoitusten määrä `my_account().unread_notifications`."
-2. **Ryhdy myyjäksi.** "Sivu /myy: jos `my_account().is_seller` on false, näytä selitys ja nappi
-   Tunnistaudu pankkitunnuksilla, joka kutsuu `strong-auth-start` purpose `kayttoonotto` ja
-   ohjaa `data.url`-osoitteeseen. Paluussa käsittele `?strong_auth=ok|virhe|peruttu` ja syykoodit."
-3. **Omat kiinteistöt.** "Sivu /omat-kiinteistot listaa `my_properties()`-rivit kortteina:
-   nimi, tunnus (määräalalle `-M`+maarala_no), tyyppi, pinta-ala hehtaareina, oma osuus
-   murtolukuna, kuolinpesän nimi, ilmoituksen tila ja kiinnostusten määrä. Napit Luo alustava
-   myynti-ilmoitus (`create_listing`) ja Katso kiinnostukset. Jos `estate_missing_shareholders`,
-   näytä perukirjan latauslomake (`submit_estate_claim`)."
-4. **Ilmoituksen julkaisu ja hyväksyntä.** "Ilmoituksen muokkaussivulla luonnoksen kenttiä
-   päivitetään suoraan `listings`-tauluun. Lähetä julkaistavaksi kutsuu `submit_listing`. Jos
-   virhe on `TUNNISTAUDU_UUDELLEEN`, käynnistä vahva tunnistus tarkoituksella `julkaisu` ja
-   `return_to` takaisin samalle sivulle, ja yritä uudelleen paluun jälkeen. Näytä
-   `listing_approval_status` listana: kuka on hyväksynyt, kuka odottaa ja kuka ei ole vielä
-   palvelussa. Hyväksyntäpyynnön saaneelle näytä Hyväksy- ja Hylkää-napit (`decide_listing`, hylkäykseen
-   syy) samalla tunnistuslogiikalla, tarkoitus `hyvaksynta`."
-5. **Kiinnostuksen ilmaisu.** "Jokaisella kiinteistösivulla on nappi Olen kiinnostunut, myös kun
-   kohde ei ole myynnissä. Kirjautumaton ohjataan rekisteröitymään. Lomakkeessa on viesti,
-   valinnainen hintatarjous ja valinta Jaa yhteystietoni (nimi ja puhelin). Kutsu `express_interest`.
-   Onnistuessa näytä: 'Viesti tallennettu. Omistaja näkee sen sovelluksessa, ja jos hän ei vielä
-   ole palvelussa, viesti odottaa häntä.' Sivu /kiinnostukseni näyttää `interests_sent()`."
-6. **Ilmoitukset-välilehti.** "Sivu /ilmoitukset: välilehdet Kiinnostukset (`interests_received`)
-   ja Kaikki ilmoitukset (`notifications`, reaaliaikainen tilaus). Kiinnostuksen avaus kutsuu
-   `mark_interest_read` ja näyttää keskustelun (`interest_thread`), vastauskentän
-   (`reply_to_interest`) sekä napit Kieltäydy ja Estä lähettäjä (`decline_interest`)."
-7. **Asetukset.** "Sivu /asetukset: kytkimet Otan vastaan kiinnostuksia, Kiinnostukset myös
-   sähköpostiin ja Hyväksyntäpyynnöt ja julkaisut sähköpostiin (`notification_prefs`)."
+## Vaihe 4. Palvelinfunktioiden asetukset Supabasessa (5 min)
 
-Markkinointilause, jota voi käyttää etusivulla: "Tarkista, onko joku kiinnostunut ostamaan
-metsäsi." Omistaja näkee kiinteistönsä odottavat kiinnostukset heti tunnistauduttuaan.
+Avaa Supabasessa **Edge Functions → Secrets** ja lisää nämä:
 
-## C. Myöhemmin: oikea pankkitunnistus (Idura)
+| Name | Value |
+|---|---|
+| `MML_API_KEY` | MML:n API-avain (sama kuin Koirametsässä, tai uusi: maanmittauslaitos.fi → Rajapintapalvelut → API-avain) |
+| `STRONG_AUTH_MODE` | `mock` |
+| `ENVIRONMENT` | `development` |
+| `STRONG_AUTH_REDIRECT_URI` | `https://<Project ID>.supabase.co/functions/v1/strong-auth-callback` |
+| `ALLOWED_RETURN_ORIGINS` | täytetään vaiheessa 5, kun Lovablen osoite on tiedossa |
 
-1. Tee Iduran kanssa sopimus FTN-tunnistuksesta (tarkastus 2–8 arkipäivää). Testidomain toimii
-   heti pankkien testitunnuksilla.
-2. Luo avaimet: `deno run scripts/generate-idura-keys.ts`. Aja tulostetut `supabase secrets set`
-   -rivit ja vie julkinen JWKS Iduran hallintapaneeliin. Ne näkyvät myös osoitteessa
-   `/functions/v1/strong-auth-jwks`.
-3. Rekisteröi Idurassa callback-osoitteeksi `STRONG_AUTH_REDIRECT_URI`.
-4. `supabase secrets set STRONG_AUTH_MODE=idura IDURA_DOMAIN=... IDURA_CLIENT_ID=...`
-5. Tuotannossa: `ENVIRONMENT=production`.
+`STRONG_AUTH_MODE=mock` tarkoittaa, että pankkitunnistuksen sijaan näytetään testihenkilöiden
+lista. Silloin koko proto toimii ilman tunnistusvälittäjän sopimusta.
 
-## D. Myöhemmin: MML:n omistajatiedot
+Avaa lisäksi **Authentication → Sign In / Providers → Email** ja varmista, että **Confirm email**
+on päällä.
 
-Kun käyttölupa on myönnetty, toteutetaan `supabase/functions/_shared/users/mml-ownership.ts`. Sen
-jälkeen SQL-editorissa ajetaan
-`update private.settings set value = 'mml' where key = 'ownership_source'; truncate private.ownership_registry_test;`.
-Käyttöliittymä ei muutu.
+## Vaihe 5. Lovable-projekti ja Supabase-yhteys (5 min)
+
+1. Luo Lovablessa uusi projekti. Ensimmäiseksi viestiksi riittää: "Tyhjä projekti, ohjeet tulevat seuraavaksi."
+2. Valitse oikeasta yläkulmasta **Supabase → Connect Supabase** ja valitse projekti `metsamyynti`.
+   Lovable näkee silloin valmiit taulut ja funktiot.
+3. GitHub-yhteyden voi tehdä Lovablen GitHub-napista. Lovable luo käyttöliittymälle oman repon,
+   ja se on hyvä niin, koska taustan repo (metsamyynti) pysyy erillään.
+4. Kopioi Lovablen esikatseluosoite ja julkaisuosoite (esim. `https://xxxx.lovable.app`).
+   Lisää ne Supabasessa Edge Functions → Secrets -kohtaan `ALLOWED_RETURN_ORIGINS`, pilkulla
+   eroteltuna. Lisää samat osoitteet myös **Authentication → URL Configuration** -kohtaan
+   (Site URL ja Redirect URLs).
+5. Avaa Lovablessa **Project settings → Knowledge** ja liitä sinne tiedostojen
+   [kayttajat-api.md](kayttajat-api.md) ja [hinta-arvio-api.md](hinta-arvio-api.md) sisältö.
+   Avaa tiedosto GitHubissa, paina **Raw**, valitse kaikki ja kopioi. Jos tila loppuu kesken,
+   liitä tiedoston sisältö sen sijaan siihen promptiin, joka sitä tarvitsee.
+
+## Vaihe 6. Promptit Lovableen
+
+Lähetä yksi prompt kerrallaan ja kokeile tulos ennen seuraavaa.
+
+### Prompt 1: perusta ja ulkoasu
+
+```
+Rakennetaan suomenkielinen palvelu, jossa metsätilan, pellon tai rakentamattoman tontin omistaja
+voi myydä kiinteistönsä ilman välittäjää. Tausta on valmiina Supabasessa: ÄLÄ luo tai muuta
+tauluja, migraatioita tai Edge Functioneita. Käytä vain olemassa olevia tauluja, RPC-funktioita
+(supabase.rpc) ja Edge Functioneita (supabase.functions.invoke), jotka on kuvattu Knowledgessa
+(kayttajat-api.md ja hinta-arvio-api.md).
+
+Virheissä näytä käyttäjälle error.message sellaisenaan. error.hint on koneluettava koodi, jonka
+perusteella ohjataan eteenpäin (esim. TUNNISTAUDU_UUDELLEEN → vahva tunnistus).
+
+Ulkoasu: tumma, moderni ja selkeä, vihreä korostusväri, kartta keskeisenä. Mobiili ensin.
+
+Tee nyt:
+- Yläpalkki: logo "Metsämyynti", linkit Kartta, Myynnissä, Omat kiinteistöt, Ilmoitukset
+  (kellokuvake, jossa lukemattomien määrä my_account().unread_notifications) ja Kirjaudu/Profiili.
+- Rekisteröinti ja kirjautuminen Supabase Authilla: sähköposti + salasana ja magic link.
+  Rekisteröinnissä kysytään nimimerkki (options.data.display_name). Kerro, että sähköposti pitää
+  vahvistaa.
+- Etusivu: iso otsikko "Myy metsäsi, peltosi tai tonttisi ilman välittäjää", toinen otsikko
+  "Tarkista, onko joku kiinnostunut ostamaan metsäsi" ja napit Etsi kiinteistö kartalta ja Myy omasi.
+```
+
+### Prompt 2: kartta ja kiinteistösivu
+
+```
+Tee sivu /kartta: koko ruudun kartta (MapLibre + OpenStreetMap-tausta). Hakukenttä
+kiinteistötunnukselle (esim. 858-401-1-10). Haku kutsuu Edge Functionia property-summary
+(kt=tunnus) ja avaa sivun /kiinteisto/:kt.
+
+Kiinteistösivu /kiinteisto/:kt näyttää property-summaryn tiedot: rajat kartalla, pinta-ala
+hehtaareina, kunta, tyyppi, metsäkuviot taulukkona (puulaji, ikä, tilavuus m³/ha), kaavatiedot
+(kaavamerkintä, tehokkuus, rakennusoikeus, määräykset) ja hinta-arvio (Edge Function valuation,
+ks. hinta-arvio-api.md). Merkitse puuston arvo "Alustava puuston arvo" tai "Vahvistettu puuston
+arvo" -merkillä.
+
+Lisää sivulle nappi "Olen kiinnostunut", myös kun kohde ei ole myynnissä. Kirjautumaton ohjataan
+rekisteröitymään. Lomakkeessa on viesti, valinnainen hintatarjous ja valinta "Jaa yhteystietoni"
+(nimi ja puhelin). Hae ensin kiinteistön id: supabase.from('properties').select('id')
+.eq('kiinteistotunnus', summary.kiinteistotunnus) ja määräalalle .eq('maarala_no', summary.maarala_no),
+muuten .is('maarala_no', null). Kutsu sitten rpc('express_interest', { p_property_id: id,
+p_message, p_offer_eur, p_share_contact, p_contact_name, p_contact_phone }). Onnistuessa näytä: "Viesti tallennettu. Omistaja näkee sen sovelluksessa.
+Jos hän ei vielä ole palvelussa, viesti odottaa häntä."
+```
+
+### Prompt 3: myyjäksi ja omat kiinteistöt
+
+```
+Sivu /omat-kiinteistot:
+- Jos my_account().is_seller on false, näytä selitys ("Myyminen vaatii kertaalleen
+  tunnistautumisen pankkitunnuksilla. Haemme silloin omistamasi kiinteistöt automaattisesti.") ja
+  nappi Tunnistaudu. Nappi kutsuu supabase.functions.invoke('strong-auth-start',
+  { body: { purpose: 'kayttoonotto', return_to: location.origin + '/omat-kiinteistot' } })
+  ja ohjaa selaimen data.url-osoitteeseen.
+- Paluussa URL:ssa on ?strong_auth=ok, virhe tai peruttu (ja virheessä &syy=KOODI). Näytä
+  ilmoitus ja poista parametrit osoitteesta.
+- Myyjälle listaa rpc('my_properties') kortteina: nimi, tunnus (määräalalle perään -M ja
+  maarala_no), tyyppi, pinta-ala ha, oma osuus murtolukuna (share_num/share_den), kuolinpesän nimi
+  (via_estate), ilmoituksen tila ja kiinnostusten määrä.
+- Kortissa on napit Luo alustava myynti-ilmoitus (Edge Function listing-draft, ks.
+  hinta-arvio-api.md), Katso kiinnostukset ja Avaa kiinteistö.
+- Jos estate_missing_shareholders on true, näytä huomautus "Kuolinpesän osakkaat puuttuvat" ja
+  perukirjan latauslomake: lataus Storageen bucketiin 'perukirjat' polkuun <user.id>/<tiedosto>
+  ja sen jälkeen rpc('submit_estate_claim').
+```
+
+### Prompt 4: ilmoituksen muokkaus, julkaisu ja yhteisomistajien hyväksyntä
+
+```
+Sivu /ilmoitus/:id/muokkaa:
+- Näytä listing-draftin generoimat tekstiosiot (listings.sections) muokattavina, otsikko ja
+  pyyntöhinta. Tallennus tehdään suoraan listings-tauluun update-kutsulla (vain luonnos-tilassa).
+  Näytä hinta-arvio ja myyjän oman hinnan asetus (rpc set_seller_price, ks. hinta-arvio-api.md).
+- Nappi Lähetä julkaistavaksi kutsuu rpc('submit_listing', { p_listing: id }). Jos virheen hint
+  on TUNNISTAUDU_UUDELLEEN, käynnistä strong-auth-start purpose 'julkaisu' ja return_to samalle
+  sivulle, ja paluun jälkeen yritä julkaisua automaattisesti uudelleen.
+- Näytä rpc('listing_approval_status') listana: omistajan nimi, tila (odottaa / hyväksytty /
+  hylätty) ja "ei vielä palvelussa", jos has_account on false.
+- Jos minulta odotetaan hyväksyntää (my_properties().my_approval = 'odottaa' tai
+  hyvaksyntapyynto-ilmoitus), näytä napit Hyväksy ja Hylkää (hylkäykseen syy-kenttä). Ne
+  kutsuvat rpc('decide_listing'). Tunnistuslogiikka on sama, mutta purpose on 'hyvaksynta'.
+- Julkaistulle ilmoitukselle napit Muokkaa (rpc reopen_listing), Merkitse myydyksi
+  (rpc mark_listing_sold) ja Poista ilmoitus (rpc withdraw_listing), kukin vahvistusdialogilla.
+
+Sivu /myynnissa: listaa julkaistut ilmoitukset (listings, status 'julkaistu', ks.
+kayttajat-api.md kohta 4) kortteina ja kartalla. Kortti avaa julkisen ilmoitussivun
+/ilmoitus/:id, jossa on myös "Olen kiinnostunut" -nappi.
+```
+
+### Prompt 5: Ilmoitukset-välilehti ja asetukset
+
+```
+Sivu /ilmoitukset, jossa on kaksi välilehteä:
+1. Kiinnostukset: rpc('interests_received'). Kortissa kiinteistö (property_label), viesti,
+   tarjous, lähettäjä (sender_alias) ja jaetut yhteystiedot. Avaus kutsuu rpc('mark_interest_read')
+   ja näyttää keskustelun rpc('interest_thread') chat-tyylisenä. Vastauskenttä kutsuu
+   rpc('reply_to_interest'). Napit Kieltäydy ja Estä lähettäjä kutsuvat rpc('decline_interest',
+   { p_interest, p_block }).
+2. Kaikki: notifications-taulu uusin ensin, Realtime-tilaus uusille riveille
+   (filter user_id=eq.<oma id>). Klikkaus vie payloadin listing_id- tai interest_id-kohteeseen.
+   "Merkitse kaikki luetuiksi" kutsuu rpc('mark_notifications_read').
+
+Sivu /kiinnostukseni: rpc('interests_sent'), jossa näkyvät tila ja "Omistaja vastasi" -merkki.
+Kortti avaa keskustelun samaan tapaan.
+
+Sivu /asetukset: kolme kytkintä notification_prefs-tauluun: "Otan vastaan kiinnostuksia",
+"Kiinnostukset myös sähköpostiin" ja "Hyväksyntäpyynnöt ja julkaisut sähköpostiin". Lisäksi
+nimimerkin muutos (profiles.display_name).
+```
+
+## Vaihe 7. Kokeile protoa testihenkilöillä
+
+1. Rekisteröidy omalla sähköpostilla, vahvista se ja avaa Omat kiinteistöt → Tunnistaudu.
+2. Valitse testilistalta esimerkiksi **Matti Metsänen**. Hänellä on metsätila Tuusulassa, tontti
+   Keravalla ja osuus kuolinpesän metsästä Pirkkalassa.
+3. Kokeile yhteisomistusta toisella tilillä (toinen sähköpostiosoite tai selaimen
+   incognito-ikkuna): rekisteröi Liisa Pelto ja Pekka Pelto, jotka omistavat yhdessä Sipoon pellon.
+4. Kokeile kiinnostusta kolmannella tilillä ilman tunnistusta: hae kartalta `753-415-3-21`
+   (Peltola) ja lähetä kiinnostus. Se tulee Liisalle ja Pekalle.
+
+## Myöhemmin
+
+- **Sähköposti-ilmoitukset:** luo Resend-tili ja lisää Secretsiin `RESEND_API_KEY`, `EMAIL_FROM`
+  ja `APP_URL`. Ajastuksen teen sinulle, kun olet valmis.
+- **Oikea pankkitunnistus (Idura):** tehdään sopimuksen jälkeen (ks. tunnistuspalveluiden
+  vertailu). Avaimet luodaan skriptillä `scripts/generate-idura-keys.ts`, ja `STRONG_AUTH_MODE`
+  vaihdetaan arvoon `idura`.
+- **MML:n omistajatiedot:** kun käyttölupa on myönnetty, testirekisteri vaihdetaan oikeaan yhdellä
+  asetuksella. Käyttöliittymä ei muutu.

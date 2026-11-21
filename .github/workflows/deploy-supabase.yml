@@ -1,0 +1,51 @@
+# Julkaisee tietokannan muutokset ja palvelinfunktiot Supabaseen aina, kun main-haaraan
+# yhdistetään muutoksia (tai käsin: Actions -> Deploy Supabase -> Run workflow).
+#
+# Tarvitsee GitHubin Settings -> Secrets and variables -> Actions:
+#   SUPABASE_ACCESS_TOKEN  Supabase -> Account -> Access Tokens -> Generate new token
+#   SUPABASE_PROJECT_REF   projektin tunnus (Project Settings -> General -> Project ID)
+#   SUPABASE_DB_PASSWORD   tietokannan salasana (annettu projektia luodessa)
+name: Deploy Supabase
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/**", ".github/workflows/deploy-supabase.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-supabase
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.20.12
+      - name: Yhdistä projektiin
+        run: |
+          [ -f supabase/config.toml ] || supabase init < /dev/null
+          supabase link --project-ref "$PROJECT_REF" -p "$SUPABASE_DB_PASSWORD"
+      - name: Tietokannan migraatiot
+        run: supabase db push -p "$SUPABASE_DB_PASSWORD"
+      - name: Palvelinfunktiot
+        run: |
+          # Selaimen uudelleenohjauksella kutsuttavat funktiot ilman JWT-tarkistusta
+          public="strong-auth-callback strong-auth-jwks"
+          for dir in supabase/functions/*/; do
+            name=$(basename "$dir")
+            case "$name" in _*) continue ;; esac
+            [ -f "$dir/index.ts" ] || continue
+            if echo " $public " | grep -q " $name "; then
+              supabase functions deploy "$name" --project-ref "$PROJECT_REF" --no-verify-jwt
+            else
+              supabase functions deploy "$name" --project-ref "$PROJECT_REF"
+            fi
+          done
