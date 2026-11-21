@@ -56,7 +56,7 @@ Kopioidaan lomakkeen kenttiin.
 
 Sopimusluonnoksesta (31625):
 
-- **Ei suoramarkkinointia, mielipide- eikä markkinatutkimusta** (10 kohta). Tämä tarkoittaa käytännössä: emme koskaan lähetä omistajille "myisitkö metsäsi?" -viestejä heidän tietojensa perusteella. Kiinnostusilmoitukset tulevat vain omistajille, jotka ovat itse luoneet tilin ja sallineet ilmoitukset. **Tämä vaikuttaa tuotteeseen:** kiinnostusilmoitus kohteeseen, jonka omistaja ei ole palvelussa, jää odottamaan eikä sitä välitetä omistajalle muuta kautta.
+- **Ei suoramarkkinointia, mielipide- eikä markkinatutkimusta** (10 kohta). Tämä tarkoittaa käytännössä: emme koskaan lähetä omistajille "myisitkö metsäsi?" -viestejä heidän tietojensa perusteella. Kiinnostusilmoitukset tulevat vain omistajille, jotka ovat itse luoneet tilin ja sallineet ilmoitukset. **Tämä vaikuttaa tuotteeseen:** kiinnostusilmoitus kohdistetaan kiinteistötunnukseen, ei henkilöön ("odottavat ilmoitukset" / haamutili kiinteistölle). Ennen kuin omistaja rekisteröityy, tauluun ei tallenneta MML:n omistajatietoja eikä omistajaan oteta yhteyttä. Kun omistaja tunnistautuu ja hänen kiinteistönsä haetaan, odottavat ilmoitukset näytetään hänelle (kuolinpesissä ja yhteisomistuksessa jokaiselle rekisteröityneelle osakkaalle). Yleinen markkinointi "Tarkista, onko kukaan kiinnostunut metsästäsi" on sallittua, koska se ei perustu MML:n tietoihin eikä kohdistu yksittäisiin omistajiin.
 - Vain ilmoitettuun käyttötarkoitukseen, ei edelleenmyyntiä. Otteita ja todistuksia saavat myydä vain MML ja kunnat (4 kohta).
 - Tiedot pysyvät EU/ETA-alueella (10 kohta).
 - Käyttäjät kirjautuvat MML:n palveluun vahvasti Suomi.fi:n kautta (4 kohta).

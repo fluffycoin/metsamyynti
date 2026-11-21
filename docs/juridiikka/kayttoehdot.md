@@ -35,7 +35,8 @@ Palveluntarjoaja: [Yrityksen nimi], Y-tunnus 3552285-3 ("me")
 
 ## 5. Kiinnostusilmoitukset ja viestit
 
-- Voit ilmoittaa kiinnostuksesta myös kohteeseen, joka ei ole myynnissä. Ilmoitus välitetään omistajalle vain, jos omistaja on palvelun käyttäjä ja sallinut ilmoitukset. Muussa tapauksessa ilmoitus jää odottamaan.
+- Voit ilmoittaa kiinnostuksesta myös kohteeseen, joka ei ole myynnissä. Ilmoitus kohdistetaan kiinteistöön, ei henkilöön. Jos omistaja ei vielä ole palvelun käyttäjä, ilmoitus odottaa, ja kun omistaja (tai kuolinpesän/yhteisomistuksen osakas) rekisteröityy ja tunnistautuu, hän näkee kaikki kiinteistöönsä kohdistuneet voimassa olevat ilmoitukset. Emme ota omistajaan yhteyttä muuta kautta.
+- Odottava kiinnostusilmoitus on voimassa [12 kk], ja voit perua sen milloin tahansa.
 - Omistajan henkilöllisyyttä ei kerrota kiinnostuneelle. Omistaja päättää itse, vastaako ja mitä kertoo.
 - Kiinnostusilmoituksille on päiväkohtainen enimmäismäärä.
 - Kiellettyä on häirintä, roskaposti, harhaanjohtavat ilmoitukset, toisen omaisuuden ilmoittaminen ilman oikeutta ja palvelun tietojen kerääminen automaattisesti (scraping).

@@ -69,6 +69,7 @@ Tiedot säilytetään EU/ETA-alueella. Jos käsittelijä on EU:n ulkopuolinen yh
 | MML:ltä haetut omistajatiedot | Tilin ja ilmoituksen voimassaolon ajan, päivitetään haettaessa |
 | Ilmoitukset | Poistosta 12 kk (väärinkäytösten selvittäminen), sitten anonymisointi |
 | Viestit | Tilin voimassaolon ajan; poistetaan, kun molemmat osapuolet ovat poistaneet tilinsä |
+| Odottavat kiinnostusilmoitukset (omistaja ei vielä käyttäjä) | [12 kk] tai kunnes lähettäjä peruu |
 | MML-kyselyiden lokit | [5 vuotta] (MML:n auditointi) |
 | Tietoturvalokit | 12 kk |
 
