@@ -28,7 +28,7 @@ create table municipalities (
 create table properties (
   id                 bigint generated always as identity primary key,
   -- Kiinteistötunnus 14-numeroisena (esim. 04940100010001); esitysmuoto lasketaan.
-  kiinteistotunnus   char(14) not null unique,
+  kiinteistotunnus   char(14) not null,
   display_id         text generated always as (
                        ltrim(substr(kiinteistotunnus, 1, 3), '0') || '-' ||
                        ltrim(substr(kiinteistotunnus, 4, 3), '0') || '-' ||
@@ -38,14 +38,17 @@ create table properties (
   municipality_code  char(3) not null,
   name               text,                          -- kiinteistön nimi, esim. 'Mäkelä'
   kind               property_kind not null default 'muu',
-  is_maarala         boolean not null default false,
+  -- Määräalan numero (esim. '601' tunnuksesta 49-401-1-1-M601); null = koko kiinteistö.
+  maarala_no         text check (maarala_no ~ '^[0-9]{1,4}$'),
+  is_maarala         boolean generated always as (maarala_no is not null) stored,
   geom               geometry(MultiPolygon, 3067),
   area_m2            double precision generated always as (st_area(geom)) stored,
   centroid_wgs84     geometry(Point, 4326) generated always as (
                        st_transform(st_pointonsurface(geom), 4326)
                      ) stored,
   source             text not null default 'mml',
-  fetched_at         timestamptz
+  fetched_at         timestamptz,
+  unique nulls not distinct (kiinteistotunnus, maarala_no)
 );
 create index properties_geom_idx on properties using gist (geom);
 create index properties_municipality_idx on properties (municipality_code);

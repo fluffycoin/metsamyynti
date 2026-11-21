@@ -5,22 +5,22 @@ create or replace function upsert_property(
   p_kiinteistotunnus text,
   p_geojson          jsonb,
   p_name             text default null,
-  p_is_maarala       boolean default false
+  p_maarala_no       text default null
 ) returns bigint
 language plpgsql security definer set search_path = public as $$
 declare
   v_id bigint;
 begin
-  insert into properties (kiinteistotunnus, municipality_code, name, is_maarala, geom, fetched_at)
+  insert into properties (kiinteistotunnus, municipality_code, name, maarala_no, geom, fetched_at)
   values (
     p_kiinteistotunnus,
     substr(p_kiinteistotunnus, 1, 3),
     p_name,
-    p_is_maarala,
+    p_maarala_no,
     st_multi(st_makevalid(st_setsrid(st_geomfromgeojson(p_geojson::text), 3067)))::geometry(MultiPolygon, 3067),
     now()
   )
-  on conflict (kiinteistotunnus) do update
+  on conflict (kiinteistotunnus, maarala_no) do update
     set geom = excluded.geom,
         name = coalesce(excluded.name, properties.name),
         fetched_at = now()
@@ -134,7 +134,7 @@ begin
 end $$;
 
 -- Kooste yhdestä kiinteistöstä: perustiedot, kuviot, kaavat ja tuoreimmat kantohinnat.
-create or replace function property_summary(p_kiinteistotunnus text)
+create or replace function property_summary(p_kiinteistotunnus text, p_maarala_no text default null)
 returns jsonb
 language sql stable security definer set search_path = public as $$
   with pr as (
@@ -142,6 +142,7 @@ language sql stable security definer set search_path = public as $$
     from properties p
     left join municipalities m on m.code = p.municipality_code
     where p.kiinteistotunnus = p_kiinteistotunnus
+      and p.maarala_no is not distinct from p_maarala_no
   ),
   stands as (
     select coalesce(jsonb_agg(jsonb_build_object(
@@ -196,6 +197,7 @@ language sql stable security definer set search_path = public as $$
                                        'zoning_pilot', coalesce(pr.zoning_pilot, false)),
     'kind', pr.kind,
     'is_maarala', pr.is_maarala,
+    'maarala_no', pr.maarala_no,
     'area_ha', round((pr.area_m2 / 10000.0)::numeric, 3),
     'center', jsonb_build_object('lat', st_y(pr.centroid_wgs84), 'lon', st_x(pr.centroid_wgs84)),
     'geometry', st_asgeojson(st_transform(pr.geom, 4326), 6)::jsonb,

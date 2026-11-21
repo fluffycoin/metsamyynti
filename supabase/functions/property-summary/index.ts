@@ -34,8 +34,8 @@ Deno.serve(async (req) => {
   const refresh = url.searchParams.get("refresh") === "1";
 
   const { data: existing } = await db.from("properties")
-    .select("id, fetched_at").eq("kiinteistotunnus", kt.long).maybeSingle();
-  const fresh = existing?.fetched_at &&
+    .select("id, fetched_at, geom").eq("kiinteistotunnus", kt.long).is("maarala_no", null).maybeSingle();
+  const fresh = existing?.geom && existing?.fetched_at &&
     Date.now() - new Date(existing.fetched_at).getTime() < MAX_AGE_DAYS * 86_400_000;
 
   const notes: string[] = [];

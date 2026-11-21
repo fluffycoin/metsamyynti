@@ -22,7 +22,7 @@ export function parseKiinteistotunnus(input: string): Kiinteistotunnus {
   const m = s.match(/^(.*?)-?M(\d{1,4})$/);
   if (m) {
     main = m[1];
-    maarala = m[2];
+    maarala = String(Number(m[2]));
   }
 
   let parts: string[];
