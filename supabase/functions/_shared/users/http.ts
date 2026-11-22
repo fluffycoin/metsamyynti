@@ -40,12 +40,26 @@ export function randomToken(bytes = 32): string {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** Sallitaanko paluuosoite (ALLOWED_RETURN_ORIGINS, pilkuilla eroteltu lista)? */
-export function isAllowedReturn(url: string): boolean {
+/**
+ * Sallitaanko paluuosoite? ALLOWED_RETURN_ORIGINS on pilkuilla eroteltu lista. Jokainen kohta on
+ * joko tarkka osoite (https://sovellus.fi) tai jokerimerkki ensimmäisenä osana
+ * (https://*.lovable.app), joka hyväksyy minkä tahansa aliverkkotunnuksen, mutta ei itse
+ * päätasoa eikä eri protokollaa tai porttia.
+ */
+export function isAllowedReturn(url: string, patterns = env("ALLOWED_RETURN_ORIGINS")): boolean {
+  let u: URL;
   try {
-    const origin = new URL(url).origin;
-    return env("ALLOWED_RETURN_ORIGINS").split(",").map((s) => s.trim().replace(/\/$/, "")).includes(origin);
+    u = new URL(url);
   } catch {
     return false;
   }
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && u.hostname === "localhost")) return false;
+  return patterns.split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean).some((p) => {
+    const m = p.match(/^(https?):\/\/\*\.([a-z0-9.-]+)(?::(\d+))?$/i);
+    if (!m) return p === u.origin;
+    const [, scheme, domain, port] = m;
+    return u.protocol === `${scheme.toLowerCase()}:` &&
+      u.port === (port ?? "") &&
+      u.hostname.endsWith(`.${domain.toLowerCase()}`);
+  });
 }

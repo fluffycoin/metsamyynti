@@ -211,7 +211,7 @@ vastaanoton kokonaan.
 |---|---|
 | `STRONG_AUTH_MODE` | `mock` (kehitys) tai `idura` |
 | `ENVIRONMENT` | `production` estää mock-tilan |
-| `ALLOWED_RETURN_ORIGINS` | sallitut paluuosoitteet, esim. `https://metsamyynti.lovable.app,http://localhost:5173` |
+| `ALLOWED_RETURN_ORIGINS` | sallitut paluuosoitteet pilkuilla eroteltuna. Tarkka osoite tai jokerimerkki aliverkkotunnukselle, esim. `https://*.lovable.app,https://*.lovableproject.com,https://metsamyynti.fi` |
 | `STRONG_AUTH_REDIRECT_URI` | `https://<projekti>.supabase.co/functions/v1/strong-auth-callback` |
 | `IDURA_DOMAIN`, `IDURA_CLIENT_ID`, `IDURA_SIGNING_JWK`, `IDURA_ENCRYPTION_JWK` | Idura (avaimet: `deno run scripts/generate-idura-keys.ts`) |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` | sähköpostit |

@@ -52,7 +52,7 @@ Avaa Supabasessa **Edge Functions → Secrets** ja lisää nämä:
 | `STRONG_AUTH_MODE` | `mock` |
 | `ENVIRONMENT` | `development` |
 | `STRONG_AUTH_REDIRECT_URI` | `https://<Project ID>.supabase.co/functions/v1/strong-auth-callback` |
-| `ALLOWED_RETURN_ORIGINS` | täytetään vaiheessa 5, kun Lovablen osoite on tiedossa |
+| `ALLOWED_RETURN_ORIGINS` | `https://*.lovable.app,https://*.lovableproject.com` |
 
 `STRONG_AUTH_MODE=mock` tarkoittaa, että pankkitunnistuksen sijaan näytetään testihenkilöiden
 lista. Silloin koko proto toimii ilman tunnistusvälittäjän sopimusta.
@@ -67,10 +67,12 @@ on päällä.
    Lovable näkee silloin valmiit taulut ja funktiot.
 3. GitHub-yhteyden voi tehdä Lovablen GitHub-napista. Lovable luo käyttöliittymälle oman repon,
    ja se on hyvä niin, koska taustan repo (metsamyynti) pysyy erillään.
-4. Kopioi Lovablen esikatseluosoite ja julkaisuosoite (esim. `https://xxxx.lovable.app`).
-   Lisää ne Supabasessa Edge Functions → Secrets -kohtaan `ALLOWED_RETURN_ORIGINS`, pilkulla
-   eroteltuna. Lisää samat osoitteet myös **Authentication → URL Configuration** -kohtaan
-   (Site URL ja Redirect URLs).
+4. Aseta Supabasessa Edge Functions → Secrets -kohtaan `ALLOWED_RETURN_ORIGINS` arvoksi
+   `https://*.lovable.app,https://*.lovableproject.com`. Se kattaa kaikki Lovablen esikatselu- ja
+   julkaisuosoitteet. Kun palvelulla on oma domain, lisää se perään pilkulla (esim.
+   `,https://metsamyynti.fi`). Lisää **Authentication → URL Configuration** -kohtaan Site URL
+   (julkaisuosoite) ja Redirect URLs -kohtaan `https://*.lovable.app/**` ja
+   `https://*.lovableproject.com/**`.
 5. Avaa Lovablessa **Project settings → Knowledge** ja liitä sinne tiedostojen
    [kayttajat-api.md](kayttajat-api.md) ja [hinta-arvio-api.md](hinta-arvio-api.md) sisältö.
    Avaa tiedosto GitHubissa, paina **Raw**, valitse kaikki ja kopioi. Jos tila loppuu kesken,
