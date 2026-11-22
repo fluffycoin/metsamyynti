@@ -105,9 +105,9 @@ select tests.ok((select count(*) from public.properties where source = 'omistaja
 \set u :matti
 :as_user
 select tests.ok((select count(*) from public.my_properties()) = 3, 'Matilla 3 kiinteistöä (yksi kuolinpesän osakkaana)');
-select tests.ok((select via_estate from public.my_properties() where kiinteistotunnus = '60440400020055') = 'Aino Vainion kuolinpesä',
+select tests.ok((select via_estate from public.my_properties() where kiinteistotunnus = '60441300100031') = 'Aino Vainion kuolinpesä',
   'kuolinpesän kautta omistettu näkyy');
-select tests.ok((select owner_count from public.my_properties() where kiinteistotunnus = '60440400020055') = 3,
+select tests.ok((select owner_count from public.my_properties() where kiinteistotunnus = '60441300100031') = 3,
   'kuolinpesän kiinteistöllä 3 hyväksyjää (osakkaat)');
 select tests.ok((select count(*) from public.property_owners) = 6, 'omistaja näkee omien kiinteistöjensä omistajat');
 select tests.ok((public.my_account() ->> 'step_up_valid')::boolean, 'tuore vahva tunnistus voimassa');
@@ -123,11 +123,11 @@ select tests.ok((select count(*) from public.property_owners) = 0, 'muiden omist
 -- Sipoon pelto karttanäkymästä (property-summary loisi rivin; tässä suoraan)
 :as_admin
 insert into public.properties (kiinteistotunnus, municipality_code, name, source)
-values ('75341500030021', '753', 'Peltola', 'mml');
-select id as sipoo from public.properties where kiinteistotunnus = '75341500030021' \gset
-select id as tuusula from public.properties where kiinteistotunnus = '85840100010010' \gset
-select id as kerava from public.properties where kiinteistotunnus = '24540200070008' \gset
-select id as pirkkala from public.properties where kiinteistotunnus = '60440400020055' \gset
+values ('75341200020007', '753', 'Peltola', 'mml');
+select id as sipoo from public.properties where kiinteistotunnus = '75341200020007' \gset
+select id as tuusula from public.properties where kiinteistotunnus = '85840900100002' \gset
+select id as kerava from public.properties where kiinteistotunnus = '24540100080150' \gset
+select id as pirkkala from public.properties where kiinteistotunnus = '60441300100031' \gset
 
 :as_anon
 select tests.err(format('select public.express_interest(%s, %L)', :sipoo, 'Hei'), '42501', 'kirjautumaton ei voi lähettää kiinnostusta');
@@ -221,8 +221,8 @@ select tests.ok((select sender_alias from public.interests_received()) like 'Kii
 \set u :liisa
 :as_user
 select tests.ok((select count(*) from public.my_properties()) = 3, 'Liisalla 3 kohdetta (Sipoo, Tampere, Espoon määräala)');
-select tests.ok((select maarala_no from public.my_properties() where kiinteistotunnus = '04940100010001') = '601', 'määräala tunnistetaan');
-select id as espoo from public.properties where kiinteistotunnus = '04940100010001' and maarala_no = '601' \gset
+select tests.ok((select maarala_no from public.my_properties() where kiinteistotunnus = '04945600010101') = '601', 'määräala tunnistetaan');
+select id as espoo from public.properties where kiinteistotunnus = '04945600010101' and maarala_no = '601' \gset
 update public.notification_prefs set accept_interests = false where user_id = auth.uid();
 \set u :veli
 :as_user
@@ -330,7 +330,7 @@ select tests.ok((select count(*) from public.notifications where kind = 'ilmoitu
 
 -- Kuolinpesä ilman osakkaita estää julkaisun; perukirjan jälkeen osakas lisätään
 :as_admin
-select id as tampere from public.properties where kiinteistotunnus = '83740100050003' \gset
+select id as tampere from public.properties where kiinteistotunnus = '83758500110181' \gset
 \set u :liisa
 :as_user
 select public.create_listing(array[:tampere::bigint]) as l_tampere \gset
@@ -363,7 +363,7 @@ select tests.ok(public.decide_listing(:'l_tampere', true) = 'julkaistu', 'peruki
 -- 9. Omistuksen muutos rekisterissä (kauppa)
 -- ===========================================================================
 :as_admin
-delete from private.ownership_registry_test where kiinteistotunnus = '24540200070008';
+delete from private.ownership_registry_test where kiinteistotunnus = '24540100080150';
 :as_service
 select public.record_strong_auth(:'matti', '010170-901K', 'Matti Metsänen', 'kayttoonotto', 'mock');
 \set u :matti

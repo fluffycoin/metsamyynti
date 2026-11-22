@@ -78,9 +78,9 @@ Testihenkilöt:
 
 | Testihenkilö | Tunnus | Omistukset |
 |---|---|---|
-| Matti Metsänen | 010170-901K | metsätila Tuusula, tontti Kerava, ¼ osakas Pirkkalan kuolinpesässä |
-| Liisa Pelto | 150382-902B | ½ pelto Sipoo, määräala Espoo, ½ Tampere (toinen puolikas kuolinpesällä ilman osakkaita) |
-| Pekka Pelto | 220379-9034 | ½ pelto Sipoo |
+| Matti Metsänen | 010170-901K | metsätila Tuusula 858-409-10-2, tontti Kerava 245-401-8-150, ¼ osakas Pirkkalan kuolinpesässä 604-413-10-31 |
+| Liisa Pelto | 150382-902B | ½ pelto Sipoo 753-412-2-7, määräala Espoo 49-456-1-101-M601, ½ Tampere 837-585-11-181 (toinen puolikas kuolinpesällä ilman osakkaita) |
+| Pekka Pelto | 220379-9034 | ½ pelto Sipoo 753-412-2-7 |
 | Kalle Vainio | 110868-9059 | ½ osakas Pirkkalan kuolinpesässä |
 | Sanna Vainio | 300491-9069 | ¼ osakas Pirkkalan kuolinpesässä |
 | Ella Ostaja | 121212A907S | ei omistuksia |
@@ -94,7 +94,7 @@ Esimerkiksi Nordeassa käyttäjä on DEMOUSER1, ja mobiilivarmenteessa numero on
 
 | Kenttä | Kuvaus |
 |---|---|
-| `property_id`, `kiinteistotunnus`, `display_id`, `maarala_no`, `name`, `kind`, `area_m2` | kiinteistö (`display_id` esim. `858-401-1-10`; määräalassa lisäksi `-M601`) |
+| `property_id`, `kiinteistotunnus`, `display_id`, `maarala_no`, `name`, `kind`, `area_m2` | kiinteistö (`display_id` esim. `858-409-10-2`; määräalassa lisäksi `-M601`) |
 | `share_num` / `share_den` | oma osuus (osakkaalla osuus kuolinpesästä) |
 | `via_estate` | kuolinpesän nimi, jos omistus on kuolinpesän kautta |
 | `owner_count` | hyväksyjien määrä (omistajat ja osakkaat) |

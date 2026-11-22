@@ -110,7 +110,7 @@ Tee nyt:
 
 ```
 Tee sivu /kartta: koko ruudun kartta (MapLibre + OpenStreetMap-tausta). Hakukenttä
-kiinteistötunnukselle (esim. 858-401-1-10). Haku kutsuu Edge Functionia property-summary
+kiinteistötunnukselle (esim. 858-409-10-2). Haku kutsuu Edge Functionia property-summary
 (kt=tunnus) ja avaa sivun /kiinteisto/:kt.
 
 Kiinteistösivu /kiinteisto/:kt näyttää property-summaryn tiedot: rajat kartalla, pinta-ala
@@ -214,7 +214,7 @@ nimimerkin muutos (profiles.display_name).
    Keravalla ja osuus kuolinpesän metsästä Pirkkalassa.
 3. Kokeile yhteisomistusta toisella tilillä (toinen sähköpostiosoite tai selaimen
    incognito-ikkuna): rekisteröi Liisa Pelto ja Pekka Pelto, jotka omistavat yhdessä Sipoon pellon.
-4. Kokeile kiinnostusta kolmannella tilillä ilman tunnistusta: hae kartalta `753-415-3-21`
+4. Kokeile kiinnostusta kolmannella tilillä ilman tunnistusta: hae kartalta `753-412-2-7`
    (Peltola) ja lähetä kiinnostus. Se tulee Liisalle ja Pekalle.
 
 ## Myöhemmin

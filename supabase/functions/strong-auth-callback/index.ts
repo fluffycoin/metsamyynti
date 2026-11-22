@@ -16,13 +16,13 @@ import { exchangeCode, ftnIdentity } from "../_shared/users/oidc.ts";
 import { normalizeHetu } from "../_shared/users/hetu.ts";
 import { fetchMmlOwnerships } from "../_shared/users/mml-ownership.ts";
 
-// Testihenkilöt (ks. supabase/migrations/20261121200600_users_test_registry_seed.sql)
+// Testihenkilöt (ks. supabase/migrations/20261122300000_users_real_test_properties.sql)
 const TEST_PEOPLE = [
-  { hetu: "010170-901K", name: "Matti Metsänen", description: "metsätila Tuusula, tontti Kerava, kuolinpesän osakas Pirkkala" },
-  { hetu: "150382-902B", name: "Liisa Pelto", description: "pelto Sipoo (yhteisomistus), määräala Espoo, Tampere kuolinpesän kanssa" },
-  { hetu: "220379-9034", name: "Pekka Pelto", description: "pelto Sipoo (yhteisomistus)" },
-  { hetu: "110868-9059", name: "Kalle Vainio", description: "kuolinpesän osakas Pirkkala" },
-  { hetu: "300491-9069", name: "Sanna Vainio", description: "kuolinpesän osakas Pirkkala" },
+  { hetu: "010170-901K", name: "Matti Metsänen", description: "metsätila Tuusula 858-409-10-2, tontti Kerava 245-401-8-150, kuolinpesän osakas Pirkkala 604-413-10-31" },
+  { hetu: "150382-902B", name: "Liisa Pelto", description: "pelto Sipoo 753-412-2-7 (yhteisomistus), määräala Espoo 49-456-1-101-M601, Tampere 837-585-11-181 kuolinpesän kanssa" },
+  { hetu: "220379-9034", name: "Pekka Pelto", description: "pelto Sipoo 753-412-2-7 (yhteisomistus)" },
+  { hetu: "110868-9059", name: "Kalle Vainio", description: "kuolinpesän osakas Pirkkala 604-413-10-31" },
+  { hetu: "300491-9069", name: "Sanna Vainio", description: "kuolinpesän osakas Pirkkala 604-413-10-31" },
   { hetu: "121212A907S", name: "Ella Ostaja", description: "ei omistuksia" },
 ];
 
