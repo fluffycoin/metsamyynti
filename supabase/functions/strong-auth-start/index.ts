@@ -11,6 +11,14 @@ import { authorizeUrl, pkcePair } from "../_shared/users/oidc.ts";
 
 const PURPOSES = ["kayttoonotto", "julkaisu", "hyvaksynta"];
 
+function safeOrigin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "virheellinen osoite";
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Vain POST" }, 405);
@@ -19,10 +27,18 @@ Deno.serve(async (req) => {
     const userId = await requestUserId(req, db);
     if (!userId) return json({ error: "Kirjaudu sisään", code: "KIRJAUDU" }, 401);
 
-    const { purpose = "kayttoonotto", return_to } = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({}));
+    const purpose = body.purpose ?? "kayttoonotto";
+    // return_to (suositus); returnTo/redirect_to sallitaan, ja puuttuessa käytetään kutsuvaa sivua.
+    const return_to: string | undefined = body.return_to ?? body.returnTo ?? body.redirect_to ??
+      req.headers.get("referer") ?? undefined;
     if (!PURPOSES.includes(purpose)) return json({ error: "Tuntematon tarkoitus", code: "VAARA_TARKOITUS" }, 400);
     if (!return_to || !isAllowedReturn(return_to)) {
-      return json({ error: "Paluuosoite ei ole sallittu", code: "VAARA_PALUUOSOITE" }, 400);
+      console.error("strong-auth-start: hylätty paluuosoite", JSON.stringify(return_to ?? null));
+      return json({
+        error: `Paluuosoite ei ole sallittu: ${return_to ? safeOrigin(return_to) : "puuttuu (return_to)"}`,
+        code: "VAARA_PALUUOSOITE",
+      }, 400);
     }
 
     const state = randomToken();
