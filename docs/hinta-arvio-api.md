@@ -82,9 +82,34 @@ kantohinnalla (uudistuskypsät uudistushakkuun, kasvatusmetsät harvennuksen hin
 
 `set_property_land_use`: arvo `null` tarkoittaa "ei tiedossa". `p_shore_m` on rantaviivan pituus
 metreinä; ranta lisää arvoa alueen €/rantametri-tason mukaan. Peltoalaa ei saada avoimesta datasta,
-joten jos `notes` pyytää sitä, näytä kenttä. Kaavamerkintä (esim. `AT`) kannattaa kysyä, kun
-`kaava.checks` kertoo, ettei merkintä ole saatavilla sähköisesti (esim. Espoon yleiskaavat):
-silloin rakennusoikeus lasketaan kunnan rakennusjärjestyksen mukaan.
+joten jos `notes` pyytää sitä, näytä kenttä.
+
+**Kaavamerkintä:** kun `kaava.designation_needed` on `true`, kiinteistö on kaava-alueella, mutta
+merkintää ei saatu rajapinnasta (esim. Espoon yleiskaavat, joiden rajapinta vaatii tunnukset).
+Näytä silloin omistajalle valinta "Kaavamerkintä kaavakartasta", vaihtoehdot listasta
+`kaava.designation_options` (`code` + `name`, esim. "AT – kyläalue"), ja linkki kaava-asiakirjaan
+(`kaava.documents[0]`). Tallenna `set_property_land_use({ ..., p_designation: 'AT' })` ja hae arvio
+uudelleen. Sen jälkeen `kaava.primary.designation`, `kaava.building_right.m2` ja
+`kaava.rakennusoikeus` ovat täytetty, ja `kaava.designation_source` on `"myyja"` (näytä pieni
+merkintä "myyjän ilmoittama"). Kaavatiedot-kortissa kannattaa käyttää hinta-arvion `kaava`-osaa,
+koska siinä on myyjän valinta ja laskettu rakennusoikeus mukana.
+
+**Mistä kaavamerkintä tulee (marraskuu 2026):**
+
+| Kunta | Asemakaavan merkintä | Yleiskaavan merkintä |
+|---|---|---|
+| Turku | automaattinen | automaattinen |
+| Tampere, Vantaa, Tuusula | automaattinen, kun kaavayksikkö on avoimessa aineistossa | myyjä valitsee |
+| Espoo | myyjä valitsee | myyjä valitsee (automaattinen, kun Espoon tunnukset on saatu) |
+| Kerava, Sipoo, Pirkkala ja muu Suomi | myyjä valitsee | myyjä valitsee |
+
+Ryhti kertoo koko Suomesta vain kaavan nimen ja asiakirjat, ei merkintää.
+
+**Rakennusoikeus yleiskaava-alueella** lasketaan kunnan rakennusjärjestyksestä (Espoo, Tuusula,
+Tampere, Vantaa, Pirkkala; ks. `valuation/rakennusjarjestys.ts`) tai muualla tyypillisestä
+haja-asutusalueen säännöstä (vähimmäiskoko 3 000 m², 10 % pinta-alasta, 200–400 k-m²).
+`kaava.building_right.rule.is_estimate` on `true`, kun käytettiin oletusta: näytä silloin
+merkintä "arvio, tarkista kunnan rakennusjärjestyksestä".
 
 Kaikki virhekoodit: `EI_OMISTAJA`, `VAHVA_TUNNISTUS`, `VIRHEELLINEN_HINTA`, `VIRHEELLINEN_ALA`,
 `VAARA_POLKU`, `VANHA_ARVIO`, `PYYNTO_ON_JO`.

@@ -7,10 +7,12 @@
  *     alue on (sähköisen tiedon perusteella) haja-asutusaluetta.
  *  3. Kaavamerkintä (esim. AO, AT, M, RA) puretaan selkokieleksi ja luokitellaan.
  *  4. Rakennusoikeus: asemakaavan kerrosala tai tehokkuusluku × pinta-ala; yleiskaavan
- *     kyläalueilla kunnan rakennusjärjestyksen enimmäismäärät (ks. MUNICIPAL_RULES).
+ *     asuin-, kylä- ja loma-alueilla kunnan rakennusjärjestyksen määrät tai valtakunnallinen
+ *     oletus (ks. rakennusjarjestys.ts).
  */
 import { fiDate, list, m2, municipalityOf, num } from "./format.ts";
 import type { PropertySummary, ZoningHit } from "./types.ts";
+import { applyRule, BuildingRule, ruleFor } from "./rakennusjarjestys.ts";
 
 export type DesignationCategory =
   | "asuin"
@@ -101,29 +103,7 @@ export function parseDesignation(code: string | null | undefined): DesignationIn
   return { code: code.trim().toUpperCase(), base: letters, name: `kaavamerkintä ${letters}`, category: "muu", residential: false };
 }
 
-/** Kunnan rakennusjärjestyksen enimmäismäärät yleiskaavan kyläalueilla. */
-export interface MunicipalRule {
-  applies_to: string[];
-  efficiency: number;
-  residential_max_m2: number;
-  outbuilding_per_dwelling_m2: number;
-  holiday_max_m2?: number;
-  holiday_total_max_m2?: number;
-  source: string;
-}
-
-export const MUNICIPAL_RULES: Record<string, MunicipalRule> = {
-  // Espoo: Eetun toimittama teksti (Kaupunkisuunnittelukeskus, Espoon kaupunki).
-  "049": {
-    applies_to: ["AT", "AME"],
-    efficiency: 0.1,
-    residential_max_m2: 300,
-    outbuilding_per_dwelling_m2: 60,
-    holiday_max_m2: 100,
-    holiday_total_max_m2: 120,
-    source: "Kaupunkisuunnittelukeskus, Espoon kaupunki",
-  },
-};
+export { BUILDING_RULES, NATIONAL_RULE } from "./rakennusjarjestys.ts";
 
 export interface BuildingRight {
   m2: number | null;
@@ -131,6 +111,8 @@ export interface BuildingRight {
   /** Arvio rakennuspaikkojen määrästä (haja-asutus / yleiskaava), hinta-arviota varten. */
   building_sites: number;
   residential: boolean;
+  /** Rakennusjärjestyksen sääntö, jolla rakennusoikeus arvioitiin (yleiskaava-alueet). */
+  rule?: { municipality: string; source: string; is_estimate: boolean; min_site_m2: number };
 }
 
 export interface KaavaResult {
@@ -143,6 +125,20 @@ export interface KaavaResult {
   rakennusoikeus: string;
   documents: string[];
   checks: string[];
+  /** Mistä ensisijaisen osuman kaavamerkintä tuli. */
+  designation_source: "rajapinta" | "myyja" | null;
+  /** true, kun kiinteistö on kaava-alueella, mutta merkintää ei saatu: käyttöliittymä
+   *  pyytää myyjää valitsemaan sen kaavakartasta (designation_options). */
+  designation_needed: boolean;
+  designation_options: { code: string; name: string }[];
+}
+
+/** Valittavat merkinnät, kun kaavamerkintä puuttuu (yleisimmät ensin). */
+const YK_OPTIONS = ["AT", "AME", "AO", "A", "RA", "M", "MU", "MY", "MA", "V", "VR", "SL"];
+const AK_OPTIONS = ["AO", "AP", "AR", "AK", "RA", "M", "VL", "VP", "P", "T"];
+function designationOptions(level: "asemakaava" | "yleiskaava", rule?: BuildingRule) {
+  const codes = level === "asemakaava" ? AK_OPTIONS : [...new Set([...(rule?.applies_to ?? []), ...YK_OPTIONS])];
+  return codes.map((code) => ({ code, name: DESIGNATIONS[code].name }));
 }
 
 /** "kyläalue" -> "kyläaluetta", "korttelialue" -> "korttelialuetta" */
@@ -160,13 +156,11 @@ function planLabel(h: ZoningHit): string {
   return parts.join(" ").replace(" ,", ",");
 }
 
-/** Haja-asutusalueen tyypillinen rakennuspaikan vähimmäiskoko, kun kunnan omaa tietoa ei ole. */
-export const DEFAULT_MIN_SITE_M2 = 2000;
 
 export function interpretZoning(summary: PropertySummary, opts: { designation?: string | null } = {}): KaavaResult {
   const areaM2 = summary.area_ha * 10_000;
   const muni = municipalityOf(summary.municipality.name);
-  const rule = MUNICIPAL_RULES[summary.municipality.code];
+  const rule = ruleFor(summary.municipality.code);
 
   const hits = (summary.zoning ?? [])
     .filter((h) => h.overlap_m2 >= 200 || h.overlap_m2 >= 0.05 * areaM2)
@@ -174,19 +168,25 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
   const documents = [...new Set(hits.flatMap((h) => h.regulations?.match(URL_RE) ?? []))];
   // Myyjän kaavakartasta ilmoittama merkintä täydentää osuman, jolta merkintä puuttuu.
   const override = parseDesignation(opts.designation);
+  let overridden: ZoningHit | null = null;
   if (override) {
     const level = hits.some((h) => h.level === "asemakaava") ? "asemakaava" : "yleiskaava";
-    const target = hits.filter((h) => h.level === level && !h.info).sort((a, b) => b.overlap_m2 - a.overlap_m2)[0];
+    // Rajapinnasta saatu merkintä on ensisijainen; myyjän valinta täydentää vain puuttuvan.
+    const target = hits.some((h) => h.level === level && h.info)
+      ? undefined
+      : hits.filter((h) => h.level === level).sort((a, b) => b.overlap_m2 - a.overlap_m2)[0];
     if (target) {
       target.info = override;
       target.designation = override.code;
+      overridden = target;
     }
   }
+  const overrideUsed = (h: ZoningHit) => h === overridden;
   const ak = hits.filter((h) => h.level === "asemakaava");
   const yk = hits.filter((h) => h.level === "yleiskaava");
   const checks: string[] = [];
-  if (override && hits.some((h) => h.designation === override.code && h.info === override)) {
-    checks.push(`Kaavamerkintä ${override.code} on myyjän kaavakartasta ilmoittama; varmista se kaavaotteesta.`);
+  if (overridden) {
+    checks.push(`Kaavamerkintä ${override!.code} on myyjän kaavakartasta ilmoittama; varmista se kaavaotteesta.`);
   }
 
   const pick = (rows: typeof hits) =>
@@ -250,6 +250,9 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
       rakennusoikeus: rak,
       documents,
       checks,
+      designation_source: info ? (overrideUsed(p) ? "myyja" : "rajapinta") : null,
+      designation_needed: !info,
+      designation_options: info ? [] : designationOptions("asemakaava"),
     };
   }
 
@@ -269,36 +272,59 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
 
     let rak = "";
     let right: number | null = null, sites = 0, basis = "";
+    let ruleInfo: BuildingRight["rule"];
     const residential = !!info?.residential;
-    if (info && rule && rule.applies_to.includes(info.base)) {
+    if (info && residential) {
       const zoneM2 = Math.min(p.overlap_m2, areaM2);
-      const eRight = rule.efficiency * zoneM2;
-      const cap = rule.residential_max_m2 + rule.outbuilding_per_dwelling_m2;
-      right = Math.round(Math.min(eRight, cap));
-      sites = zoneM2 >= DEFAULT_MIN_SITE_M2 ? 1 : 0;
-      basis = eRight < cap ? `e=${fmtE(rule.efficiency)} × ${m2(zoneM2)}` : "rakennusjärjestyksen enimmäismäärät";
-      rak =
-        `Yleiskaavan ${list(rule.applies_to.map((c) => c + "-"))}alueilla on asuinrakentamisen osalta noudatettu enimmäistehokkuutta e=${fmtE(rule.efficiency)} ` +
-        `tai rakennusjärjestyksen enimmäismääriä (asuinrakennus enintään ${num(rule.residential_max_m2)} m², lisäksi talousrakennuksia yhteensä enintään ${num(rule.outbuilding_per_dwelling_m2)} m² asuntoa kohti` +
-        (rule.holiday_max_m2
-          ? `, loma-asunnot tällä alueella enintään ${num(rule.holiday_max_m2)} m² sekä talousrakennuksia siten, että kokonaiskerrosala on enintään ${num(rule.holiday_total_max_m2 ?? rule.holiday_max_m2)} m²`
-          : "") +
-        `), kumpi ensin tulee täyteen. Jos kyseessä on muu kuin asuinrakentaminen tai loma-asunnon rakentaminen, on niiden enimmäismäärä tehokkuusluvun e=${fmtE(rule.efficiency)} mukainen. ` +
-        `Kiinteistö on ${shareTxt} yleiskaavan ${partitive(info.name)} ${info.base}, joten se mahdollistaa vakituisen asumisen, jos muut edellytykset täyttyvät. ` +
-        `Kiinteistön ${info.base}-alueeseen kuuluvalla pinta-alalla (${m2(zoneM2)}) tehokkuusluvun mukainen enimmäiskerrosala olisi ${num(Math.round(eRight))} k-m², ` +
-        (eRight < cap
-          ? `joten rakennusoikeutta rajaa tehokkuusluku: arviolta ${num(right)} k-m².`
-          : `joten rakennusoikeutta rajaavat rakennusjärjestyksen enimmäismäärät: arviolta ${num(rule.residential_max_m2)} m² asuinrakennus ja ${num(rule.outbuilding_per_dwelling_m2)} m² talousrakennuksia asuntoa kohti.`) +
-        ` (${rule.source})`;
-    } else if (residential) {
-      const zoneM2 = Math.min(p.overlap_m2, areaM2);
-      sites = zoneM2 >= DEFAULT_MIN_SITE_M2 ? 1 : 0;
-      basis = "yleiskaavan mitoitus, tarkistettava";
-      rak =
-        `Yleiskaava osoittaa alueen ${translative(info!.name)}, joka mahdollistaa ${info!.category === "loma" ? "loma-asumisen" : "asumisen"}, jos muut edellytykset täyttyvät. ` +
-        "Rakennuspaikkojen määrä perustuu yleiskaavan mitoitukseen (rakennuspaikkoja per kantatila tai hehtaari), ja rakennusoikeus rakennusjärjestykseen. " +
-        noPlanText("");
-      checks.push(`Tarkista yleiskaavan mitoitus ja käyttämättömät rakennusoikeudet (${muni} kaavoitus / rakennusvalvonta).`);
+      const holiday = info.category === "loma";
+      const r = applyRule(rule, zoneM2, holiday);
+      right = r.m2;
+      sites = r.sites;
+      ruleInfo = { municipality: rule.municipality, source: rule.source, is_estimate: rule.is_estimate, min_site_m2: rule.min_site_m2 };
+      basis = r.limited_by === "tehokkuus"
+        ? `${num(rule.efficiency * 100)} % × ${m2(zoneM2)} (${rule.is_estimate ? "arvio" : rule.municipality + ", rakennusjärjestys"})`
+        : `${rule.is_estimate ? "tyypillinen rakennusjärjestys (arvio)" : rule.source}`;
+      if (rule.applies_to?.includes(info.base)) {
+        // Kunnan oma ohjeteksti (Espoo), välittäjän kielellä.
+        const cap = (rule.residential_max_m2 ?? rule.max_m2) + (rule.outbuilding_m2 ?? 0);
+        rak =
+          `Yleiskaavan ${list(rule.applies_to.map((c) => c + "-"))}alueilla on asuinrakentamisen osalta noudatettu enimmäistehokkuutta e=${fmtE(rule.efficiency)} ` +
+          `tai rakennusjärjestyksen enimmäismääriä (asuinrakennus enintään ${num(rule.residential_max_m2 ?? rule.max_m2)} m², lisäksi talousrakennuksia yhteensä enintään ${num(rule.outbuilding_m2 ?? 0)} m² asuntoa kohti` +
+          (rule.holiday_max_m2
+            ? `, loma-asunnot tällä alueella enintään ${num(rule.holiday_max_m2)} m² sekä talousrakennuksia siten, että kokonaiskerrosala on enintään ${num(rule.holiday_total_m2 ?? rule.holiday_max_m2)} m²`
+            : "") +
+          `), kumpi ensin tulee täyteen. Jos kyseessä on muu kuin asuinrakentaminen tai loma-asunnon rakentaminen, on niiden enimmäismäärä tehokkuusluvun e=${fmtE(rule.efficiency)} mukainen. ` +
+          `Kiinteistö on ${shareTxt} yleiskaavan ${partitive(info.name)} ${info.base}, joten se mahdollistaa vakituisen asumisen, jos muut edellytykset täyttyvät. ` +
+          `Kiinteistön ${info.base}-alueeseen kuuluvalla pinta-alalla (${m2(zoneM2)}) tehokkuusluvun mukainen enimmäiskerrosala olisi ${num(Math.round(r.e_m2))} k-m², ` +
+          (r.e_m2 < cap
+            ? `joten rakennusoikeutta rajaa tehokkuusluku: arviolta ${num(right)} k-m².`
+            : `joten rakennusoikeutta rajaavat rakennusjärjestyksen enimmäismäärät: arviolta ${num(rule.residential_max_m2 ?? rule.max_m2)} m² asuinrakennus ja ${num(rule.outbuilding_m2 ?? 0)} m² talousrakennuksia asuntoa kohti.`) +
+          ` (${rule.source})`;
+      } else {
+        const what = holiday ? "loma-asumisen" : "asumisen";
+        const ruleTxt = rule.is_estimate
+          ? `${muni} rakennusjärjestyksen tarkkoja määriä ei ole vielä palvelussa, joten arvio perustuu tyypilliseen haja-asutusalueen rakennusjärjestykseen: `
+          : `${rule.source}: `;
+        const limits = holiday
+          ? `loma-asunnon rakennuspaikan kerrosala enintään ${num(rule.holiday_total_m2 ?? rule.holiday_max_m2 ?? 150)} k-m²`
+          : `rakennusoikeus ${num(rule.efficiency * 100)} % rakennuspaikan pinta-alasta` +
+            (rule.min_m2 ? `, kuitenkin vähintään ${num(rule.min_m2)} k-m²` : "") +
+            ` ja enintään ${num(rule.max_m2)} k-m²` +
+            (rule.residential_max_m2 ? `; asuinrakennus enintään ${num(rule.residential_max_m2)} k-m²` : "") +
+            (rule.outbuilding_m2 ? ` ja talousrakennukset yhteensä enintään ${num(rule.outbuilding_m2)} m²` : "");
+        rak =
+          `Yleiskaava osoittaa alueen ${translative(info.name)} (${info.base}), joka mahdollistaa ${what}, jos muut edellytykset täyttyvät. ` +
+          `${ruleTxt}rakennuspaikan vähimmäiskoko ${m2(rule.min_site_m2)}, ${limits}. ` +
+          (r.below_min_site
+            ? `Kiinteistön ${info.base}-alueeseen kuuluva pinta-ala (${m2(zoneM2)}) alittaa vähimmäiskoon, joten uuden rakennuspaikan saaminen edellyttää poikkeamista; olemassa olevalla rakennuspaikalla korvaava rakentaminen on yleensä mahdollista. `
+            : `Kiinteistön ${info.base}-alueeseen kuuluvalla pinta-alalla (${m2(zoneM2)}) rakennusoikeus on arviolta ${num(right)} k-m². `) +
+          "Rakennuspaikkojen määrä perustuu yleiskaavan mitoitukseen, ja rakentaminen ratkaistaan rakennusluvalla.";
+        checks.push(
+          rule.is_estimate
+            ? `Rakennusoikeus on arvio tyypillisen rakennusjärjestyksen mukaan; tarkista ${muni} rakennusjärjestys ja yleiskaavan mitoitus.`
+            : `Tarkista yleiskaavan mitoitus ja käyttämättömät rakennusoikeudet (${muni} kaavoitus / rakennusvalvonta).`,
+        );
+      }
     } else if (info?.category === "maa_metsatalous") {
       rak =
         "Alue on yleiskaavassa osoitettu maa- ja metsätalouskäyttöön. Alueelle saa rakentaa maa- ja metsätaloutta palvelevia rakennuksia; " +
@@ -313,11 +339,14 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
       status: "yleiskaava",
       primary: p,
       hits,
-      building_right: { m2: right, basis: basis || "ei tiedossa", building_sites: sites, residential },
+      building_right: { m2: right, basis: basis || "ei tiedossa", building_sites: sites, residential, rule: ruleInfo },
       kaavoitustilanne: tilanne,
       rakennusoikeus: rak,
       documents,
       checks,
+      designation_source: info ? (overrideUsed(p) ? "myyja" : "rajapinta") : null,
+      designation_needed: !info,
+      designation_options: info ? [] : designationOptions("yleiskaava", rule),
     };
   }
 
@@ -335,5 +364,8 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
     rakennusoikeus: noPlanText(""),
     documents,
     checks,
+    designation_source: null,
+    designation_needed: false,
+    designation_options: [],
   };
 }

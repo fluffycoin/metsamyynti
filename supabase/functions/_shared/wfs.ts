@@ -95,6 +95,8 @@ export async function wfs1GetGmlFeatures(opts: {
   bbox: BBox;
   maxFeatures?: number;
   timeoutMs?: number;
+  /** Basic-tunnukset rajapinnoille, joiden tasot vaativat kirjautumisen. */
+  auth?: { user: string; password: string };
 }): Promise<Feature[]> {
   const u = new URL(opts.endpoint);
   u.searchParams.set("service", "WFS");
@@ -106,7 +108,9 @@ export async function wfs1GetGmlFeatures(opts: {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 60_000);
   try {
-    const res = await fetch(u.toString(), { signal: ctrl.signal });
+    const headers: Record<string, string> = {};
+    if (opts.auth) headers.Authorization = `Basic ${btoa(`${opts.auth.user}:${opts.auth.password}`)}`;
+    const res = await fetch(u.toString(), { signal: ctrl.signal, headers });
     const text = await res.text();
     if (!res.ok) throw new Error(`HTTP ${res.status} ${opts.typeName}`);
     const exc = gmlException(text);

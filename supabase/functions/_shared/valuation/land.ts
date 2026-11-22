@@ -203,16 +203,21 @@ export function computeLandValue(
   if (sites > 0 && prices.rakennuspaikka) {
     const p = prices.rakennuspaikka;
     siteHa = Math.min(total - zonedHa, sites * 0.5);
+    // Rakennuspaikan hinta sisältää sen alueen puuston, joten se vähennetään (puusto näkyy
+    // erikseen puuston arvossa eikä tule lasketuksi kahdesti).
+    const siteTimber = total > 0 ? timberValueEur * (siteHa / total) : 0;
+    const value = Math.max(sites * p.eur * 0.5, sites * p.eur - siteTimber);
     parts.push({
       type: "rakennuspaikka",
       label: sites === 1 ? "Rakennuspaikka" : `Rakennuspaikat (${sites} kpl)`,
       quantity: sites,
       unit: "kpl",
       unit_price_eur: p.eur,
-      value_eur: sites * p.eur,
-      basis: input.building_sites !== undefined && input.building_sites !== null
-        ? `myyjän ilmoittama rakennuspaikkojen määrä; hintataso ${p.source}`
-        : `arvio: kiinteistö on yleiskaavan ${kaava.primary?.info?.code ?? ""}-alueella ja riittävän suuri rakennuspaikaksi; edellyttää rakennuslupaa. Hintataso ${p.source}`,
+      value_eur: value,
+      basis: (input.building_sites !== undefined && input.building_sites !== null
+        ? `myyjän ilmoittama rakennuspaikkojen määrä; hintataso ${num0(p.eur)} €/kpl (${p.source})`
+        : `kiinteistö on yleiskaavan ${kaava.primary?.info?.code ?? ""}-alueella ja riittävän suuri rakennuspaikaksi; edellyttää rakennuslupaa. Hintataso ${num0(p.eur)} €/kpl (${p.source})`) +
+        (siteTimber >= 1 ? `; rakennuspaikan alueen puusto (${num0(sites * p.eur - value)} €) vähennetty, koska se sisältyy hintaan` : ""),
     });
     if (input.building_sites === undefined || input.building_sites === null) {
       notes.push("Rakennuspaikan arvo perustuu oletukseen, että kiinteistölle voi saada rakennusluvan. Varmista asia kunnasta ennen julkaisua.");
