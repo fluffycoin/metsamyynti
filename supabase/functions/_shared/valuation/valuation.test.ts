@@ -295,3 +295,42 @@ Deno.test("Espoon yleiskaavatason merkintä luetaan ominaisuuksista", () => {
   assertEquals(designationFromProps({ X: "Kyläalue", Y: "MU-1" }), "MU-1");
   assertEquals(designationFromProps({ NIMI: "Bodom" }), null);
 });
+
+const ykSummary = (code: string, name: string, area_ha: number) =>
+  base({
+    municipality: { code, name, region_name: "Uusimaa", zoning_pilot: true },
+    kind: "muu",
+    area_ha,
+    zoning: [{
+      level: "yleiskaava", plan_name: `${name}n osayleiskaava`, plan_id: null, approved_on: null,
+      designation: null, efficiency: null, building_right_m2: null, regulations: null, overlap_m2: area_ha * 10_000, source_layer: "ryhti",
+    }],
+  });
+
+Deno.test("muu kunta: myyjän AT + valtakunnallinen oletus, merkitty arvioksi", () => {
+  const k = interpretZoning(ykSummary("245", "Kerava", 0.6), { designation: "AT" });
+  // 10 % × 6 000 m² = 600 -> enintään 400 k-m²
+  assertEquals(k.building_right.m2, 400);
+  assertEquals(k.building_right.building_sites, 1);
+  assert(k.building_right.rule?.is_estimate);
+  assertStringIncludes(k.rakennusoikeus, "tyypilliseen haja-asutusalueen rakennusjärjestykseen");
+  assert(k.checks.some((c) => c.includes("arvio")));
+  assertEquals(k.designation_source, "myyja");
+});
+
+Deno.test("Tuusula: rakennusjärjestyksen 10 %, vähintään 200 ja enintään 400 k-m²; liian pieni paikka", () => {
+  const ok = interpretZoning(ykSummary("858", "Tuusula", 0.3), { designation: "AT" });
+  assertEquals(ok.building_right.m2, 300); // 10 % × 3 000 m², mutta alle 5 000 m²: ei uutta rakennuspaikkaa
+  assertEquals(ok.building_right.building_sites, 0);
+  assertStringIncludes(ok.rakennusoikeus, "alittaa vähimmäiskoon");
+  const big = interpretZoning(ykSummary("858", "Tuusula", 0.8), { designation: "AO" });
+  assertEquals(big.building_right.m2, 400);
+  assertEquals(big.building_right.building_sites, 1);
+  assertStringIncludes(big.rakennusoikeus, "Tuusulan rakennusjärjestys 2025");
+  assertEquals(big.building_right.rule?.is_estimate, false);
+});
+
+Deno.test("loma-asuntoalue RA käyttää loma-asunnon enimmäisalaa", () => {
+  const k = interpretZoning(ykSummary("604", "Pirkkala", 0.6), { designation: "RA" });
+  assertEquals(k.building_right.m2, 100);
+});
