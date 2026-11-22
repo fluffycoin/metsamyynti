@@ -40,23 +40,42 @@ export function randomToken(bytes = 32): string {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/** Kehitystilassa Lovablen esikatselu- ja julkaisuosoitteet sallitaan aina. */
+const DEV_PATTERNS = ["https://*.lovable.app", "https://*.lovableproject.com", "https://*.lovable.dev"];
+
+/** Paluuosoitteiden lista: ALLOWED_RETURN_ORIGINS (+ kehitystilassa Lovable). Sietää välilyönnit ja lainausmerkit. */
+export function returnPatterns(): string[] {
+  const raw = Deno.env.get("ALLOWED_RETURN_ORIGINS") ?? "";
+  const list = raw.split(/[,\s]+/).map((s) => s.trim().replace(/^["']+|["']+$/g, "").replace(/\/+$/, ""))
+    .filter(Boolean);
+  if ((Deno.env.get("ENVIRONMENT") ?? "development") !== "production") list.push(...DEV_PATTERNS);
+  return list;
+}
+
 /**
- * Sallitaanko paluuosoite? ALLOWED_RETURN_ORIGINS on pilkuilla eroteltu lista. Jokainen kohta on
- * joko tarkka osoite (https://sovellus.fi) tai jokerimerkki ensimmäisenä osana
- * (https://*.lovable.app), joka hyväksyy minkä tahansa aliverkkotunnuksen, mutta ei itse
- * päätasoa eikä eri protokollaa tai porttia.
+ * Sallitaanko paluuosoite? Jokainen kohta on joko tarkka osoite (https://sovellus.fi) tai
+ * jokerimerkki ensimmäisenä osana (https://*.lovable.app), joka hyväksyy minkä tahansa
+ * aliverkkotunnuksen, mutta ei itse päätasoa eikä eri protokollaa tai porttia.
+ * http hyväksytään vain localhostille (kehitystilassa mikä tahansa portti).
  */
-export function isAllowedReturn(url: string, patterns = env("ALLOWED_RETURN_ORIGINS")): boolean {
+export function isAllowedReturn(url: string, patterns: string | string[] = returnPatterns()): boolean {
   let u: URL;
   try {
     u = new URL(url);
   } catch {
     return false;
   }
-  if (u.protocol !== "https:" && !(u.protocol === "http:" && u.hostname === "localhost")) return false;
-  return patterns.split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean).some((p) => {
+  const isLocal = u.protocol === "http:" && u.hostname === "localhost";
+  if (u.protocol !== "https:" && !isLocal) return false;
+  if (isLocal && (Deno.env.get("ENVIRONMENT") ?? "development") !== "production" && typeof patterns !== "string") {
+    return true;
+  }
+  const list = typeof patterns === "string"
+    ? patterns.split(",").map((s) => s.trim().replace(/^["']+|["']+$/g, "").replace(/\/+$/, "")).filter(Boolean)
+    : patterns;
+  return list.some((p) => {
     const m = p.match(/^(https?):\/\/\*\.([a-z0-9.-]+)(?::(\d+))?$/i);
-    if (!m) return p === u.origin;
+    if (!m) return p.toLowerCase() === u.origin;
     const [, scheme, domain, port] = m;
     return u.protocol === `${scheme.toLowerCase()}:` &&
       u.port === (port ?? "") &&

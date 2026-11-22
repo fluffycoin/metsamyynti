@@ -24,3 +24,21 @@ Deno.test("hylätään vieraat ja huijausosoitteet", () => {
   assertEquals(isAllowedReturn("javascript:alert(1)", P), false);
   assertEquals(isAllowedReturn("https://metsamyynti.fi.evil.com/", P), false);
 });
+
+Deno.test("sietää lainausmerkit ja välilyönnit", () => {
+  assertEquals(isAllowedReturn("https://abc.lovableproject.com/omat", '"https://*.lovable.app, https://*.lovableproject.com/"'), true);
+});
+
+Deno.test("kehitystilassa Lovable sallitaan ilman asetusta", () => {
+  Deno.env.delete("ALLOWED_RETURN_ORIGINS");
+  Deno.env.set("ENVIRONMENT", "development");
+  assertEquals(isAllowedReturn("https://53a98c45-d617-41e2-ae23-d3ba9a2b64da.lovableproject.com/omat-kiinteistot"), true);
+  assertEquals(isAllowedReturn("http://localhost:8080/omat"), true);
+  assertEquals(isAllowedReturn("https://evil.example/omat"), false);
+  Deno.env.set("ENVIRONMENT", "production");
+  assertEquals(isAllowedReturn("https://abc.lovableproject.com/omat"), false);
+  Deno.env.set("ALLOWED_RETURN_ORIGINS", "https://metsamyynti.fi");
+  assertEquals(isAllowedReturn("https://metsamyynti.fi/omat"), true);
+  Deno.env.delete("ENVIRONMENT");
+  Deno.env.delete("ALLOWED_RETURN_ORIGINS");
+});
