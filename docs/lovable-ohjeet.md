@@ -54,8 +54,8 @@ Avaa Supabasessa **Edge Functions → Secrets** ja lisää nämä:
 | `STRONG_AUTH_REDIRECT_URI` | `https://<Project ID>.supabase.co/functions/v1/strong-auth-callback` |
 | `ALLOWED_RETURN_ORIGINS` | `https://*.lovable.app,https://*.lovableproject.com` |
 
-`STRONG_AUTH_MODE=mock` tarkoittaa, että pankkitunnistuksen sijaan näytetään testihenkilöiden
-lista. Silloin koko proto toimii ilman tunnistusvälittäjän sopimusta.
+`STRONG_AUTH_MODE=mock` tarkoittaa, että pankkitunnistuksen sijaan sovelluksen sivu /testitunnistus näyttää testihenkilöiden
+listan. Silloin koko proto toimii ilman tunnistusvälittäjän sopimusta.
 
 Avaa lisäksi **Authentication → Sign In / Providers → Email** ja varmista, että **Confirm email**
 on päällä.
@@ -145,6 +145,22 @@ Sivu /omat-kiinteistot:
 - Jos estate_missing_shareholders on true, näytä huomautus "Kuolinpesän osakkaat puuttuvat" ja
   perukirjan latauslomake: lataus Storageen bucketiin 'perukirjat' polkuun <user.id>/<tiedosto>
   ja sen jälkeen rpc('submit_estate_claim').
+```
+
+### Prompt 3b: testitunnistussivu (vain testivaiheeseen)
+
+```
+Tee sivu /testitunnistus. Se näytetään, kun Tunnistaudu-nappia painetaan testitilassa.
+- Lue URL:sta parametri state.
+- Hae testihenkilöt: fetch(`${SUPABASE_URL}/functions/v1/strong-auth-callback?testihenkilot=1`),
+  joka palauttaa { people: [{ hetu, name, description }] }. SUPABASE_URL on sama osoite, jota
+  Supabase-asiakas käyttää.
+- Näytä otsikko "Testitunnistus", teksti "Testivaihe: valitse henkilö, jona tunnistaudut. Oikeassa
+  palvelussa tässä on pankkitunnistus." ja henkilöt kortteina (nimi, tunnus, kuvaus).
+- Kortin klikkaus lähettää fetch POST samaan osoitteeseen, otsakkeena content-type
+  application/json ja runkona { state, hetu }. Vastaus on { redirect } tai { error }. Jos redirect
+  on mukana, ohjaa selain siihen osoitteeseen (location.href = redirect). Muuten näytä error.
+- Älä käytä supabase.functions.invoke-kutsua tässä, vaan tavallista fetchiä.
 ```
 
 ### Prompt 4: ilmoituksen muokkaus, julkaisu ja yhteisomistajien hyväksyntä

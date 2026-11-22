@@ -62,8 +62,19 @@ Virheen sattuessa paluuosoitteen perässä on `?strong_auth=virhe&syy=<KOODI>`, 
 Ensimmäisellä tunnistuksella omistukset haetaan automaattisesti (testivaiheessa testirekisteristä),
 ja kiinteistölle aiemmin tulleet kiinnostukset ja hyväksyntäpyynnöt toimitetaan käyttäjälle.
 
-**Testitila** (`STRONG_AUTH_MODE=mock`): pankkitunnistuksen sijaan aukeaa lomake, jossa
-valitaan testihenkilö:
+**Testitila** (`STRONG_AUTH_MODE=mock`): `strong-auth-start` palauttaa osoitteen sovelluksen omalle
+sivulle `/testitunnistus?state=...`. Sivu hakee testihenkilöt ja lähettää valinnan:
+
+```ts
+const base = `${SUPABASE_URL}/functions/v1/strong-auth-callback`;
+const { people } = await (await fetch(`${base}?testihenkilot=1`)).json();   // [{ hetu, name, description }]
+const res = await fetch(base, { method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ state, hetu }) });
+const { redirect, error } = await res.json();
+if (redirect) location.href = redirect; // takaisin sovellukseen ?strong_auth=ok
+```
+
+Testihenkilöt:
 
 | Testihenkilö | Tunnus | Omistukset |
 |---|---|---|

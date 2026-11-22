@@ -4,7 +4,8 @@
  * vastaus: { "url": "https://..." }  -> selain ohjataan tähän osoitteeseen
  *
  * STRONG_AUTH_MODE=idura (oletus) ohjaa Iduran tunnistukseen. STRONG_AUTH_MODE=mock ohjaa
- * testilomakkeelle, jossa valitaan testihenkilö (vain kehitykseen, estetty tuotannossa).
+ * sovelluksen sivulle /testitunnistus?state=..., jossa valitaan testihenkilö (vain kehitykseen,
+ * estetty tuotannossa).
  */
 import { cors, env, isAllowedReturn, json, randomToken, requestUserId, serviceClient } from "../_shared/users/http.ts";
 import { authorizeUrl, pkcePair } from "../_shared/users/oidc.ts";
@@ -53,9 +54,10 @@ Deno.serve(async (req) => {
     const mode = env("STRONG_AUTH_MODE", "idura");
     if (mode === "mock") {
       if (env("ENVIRONMENT", "development") === "production") throw new Error("Mock-tunnistus on estetty tuotannossa");
-      const u = new URL(env("STRONG_AUTH_REDIRECT_URI"));
+      // Supabase ei näytä HTML-sivuja funktioista, joten testihenkilön valinta on sovelluksen sivu
+      // /testitunnistus, joka hakee henkilöt ja lähettää valinnan strong-auth-callbackille.
+      const u = new URL("/testitunnistus", return_to);
       u.searchParams.set("state", state);
-      u.searchParams.set("mock", "1");
       return json({ url: u.toString(), mode });
     }
     return json({ url: await authorizeUrl({ state, nonce, codeChallenge: challenge }), mode });
