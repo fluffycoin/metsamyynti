@@ -1,4 +1,5 @@
 import { assert, assertAlmostEquals, assertEquals, assertMatch, assertStringIncludes } from "jsr:@std/assert@1";
+import { designationFromProps } from "../sources/kaavat/espoo.ts";
 import { interpretZoning, parseDesignation } from "./kaava.ts";
 import { LandPrice, resolvePrices } from "./land.ts";
 import { generateListing } from "./listing.ts";
@@ -247,4 +248,50 @@ Deno.test("kantohintojen tuoreus", async () => {
   assert(stumpagePricesFresh({ week: "2026W46", eur_m3: { "8021:N1": 70 } }, now));
   assert(!stumpagePricesFresh({ week: "2026W40", eur_m3: { "8021:N1": 70 } }, now));
   assert(!stumpagePricesFresh({ week: null, eur_m3: null }, now));
+});
+
+Deno.test("Espoo Bodom 49-403-2-114: Ryhti antaa yleiskaavan ilman merkintää -> myyjän AT -> rakennuspaikka", () => {
+  const PRICES_E: LandPrice[] = [
+    ...PRICES.filter((p) => !(p.land_use === "rakennuspaikka" && p.area_key === "049")),
+    { land_use: "rakennuspaikka", eur: 150000, unit: "eur_kpl", scope: "kunta", area_key: "049", year: null, source: "arvio: Espoo", is_estimate: true },
+    { land_use: "raakamaa", eur: 30000, unit: "eur_ha", scope: "kunta", area_key: "049", year: null, source: "arvio: Espoo", is_estimate: true },
+  ];
+  const stands = [stand({ area_ha: 1.0, development_class: "03", volume_m3_ha: 364, sawlog_m3_ha: 250, pulp_m3_ha: 111 })];
+  const s = base({
+    kiinteistotunnus: "04940300020114",
+    display_id: "49-403-2-114",
+    municipality: { code: "049", name: "Espoo", region_name: "Uusimaa", zoning_pilot: true },
+    kind: "metsa",
+    area_ha: 1.005,
+    forest: { forest_ha: 1.0, total_volume_m3: 364, stands },
+    zoning: [{
+      level: "yleiskaava", plan_name: "Espoon pohjois- ja keskiosien yleiskaava", plan_id: "YK-000635", approved_on: "2021-11-15",
+      designation: null, efficiency: null, building_right_m2: null, regulations: "Yleiskaava.", overlap_m2: 10050, source_layer: "ryhti:pub_valid_lm_plan_ix_gs",
+    }],
+  });
+  const prices = resolvePrices(PRICES_E, { municipality_code: "049", region_name: "Uusimaa" });
+
+  // Ilman merkintää: pyydetään valitsemaan, AT ja AME ensimmäisinä.
+  const before = valuate(s, prices, SRC);
+  assert(before.kaava.designation_needed);
+  assertEquals(before.kaava.designation_options.slice(0, 2).map((o) => o.code), ["AT", "AME"]);
+  assertEquals(before.kaava.building_right.m2, null);
+
+  // Myyjä valitsee AT: 300 + 60 k-m², yksi rakennuspaikka, hinta Oikotien pyyntihinnan (160 000 €) tasolla.
+  const v = valuate(s, prices, SRC, { land_use: { designation: "AT" } });
+  assertEquals(v.kaava.designation_needed, false);
+  assertEquals(v.kaava.designation_source, "myyja");
+  assertEquals(v.kaava.building_right.m2, 360);
+  assertStringIncludes(v.kaava.rakennusoikeus, "yleiskaavan kyläaluetta AT");
+  const site = v.land.parts.find((p) => p.type === "rakennuspaikka")!;
+  assert(site, "rakennuspaikka puuttuu");
+  assertStringIncludes(site.basis, "puusto");
+  assert(v.computed_total_eur > 140_000 && v.computed_total_eur < 190_000, `kokonaisarvo ${v.computed_total_eur}`);
+});
+
+Deno.test("Espoon yleiskaavatason merkintä luetaan ominaisuuksista", () => {
+  assertEquals(designationFromProps({ KAAVATUNNUS: "722300", MERKINTA: "AT" }), "AT");
+  assertEquals(designationFromProps({ NIMI: "Kyläalue", LYHENNE: "ame" }), "AME");
+  assertEquals(designationFromProps({ X: "Kyläalue", Y: "MU-1" }), "MU-1");
+  assertEquals(designationFromProps({ NIMI: "Bodom" }), null);
 });

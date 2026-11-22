@@ -143,6 +143,20 @@ export interface KaavaResult {
   rakennusoikeus: string;
   documents: string[];
   checks: string[];
+  /** Mistä ensisijaisen osuman kaavamerkintä tuli. */
+  designation_source: "rajapinta" | "myyja" | null;
+  /** true, kun kiinteistö on kaava-alueella, mutta merkintää ei saatu: käyttöliittymä
+   *  pyytää myyjää valitsemaan sen kaavakartasta (designation_options). */
+  designation_needed: boolean;
+  designation_options: { code: string; name: string }[];
+}
+
+/** Valittavat merkinnät, kun kaavamerkintä puuttuu (yleisimmät ensin). */
+const YK_OPTIONS = ["AT", "AME", "AO", "A", "RA", "M", "MU", "MY", "MA", "V", "VR", "SL"];
+const AK_OPTIONS = ["AO", "AP", "AR", "AK", "RA", "M", "VL", "VP", "P", "T"];
+function designationOptions(level: "asemakaava" | "yleiskaava", rule?: MunicipalRule) {
+  const codes = level === "asemakaava" ? AK_OPTIONS : [...new Set([...(rule?.applies_to ?? []), ...YK_OPTIONS])];
+  return codes.map((code) => ({ code, name: DESIGNATIONS[code].name }));
 }
 
 /** "kyläalue" -> "kyläaluetta", "korttelialue" -> "korttelialuetta" */
@@ -174,19 +188,25 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
   const documents = [...new Set(hits.flatMap((h) => h.regulations?.match(URL_RE) ?? []))];
   // Myyjän kaavakartasta ilmoittama merkintä täydentää osuman, jolta merkintä puuttuu.
   const override = parseDesignation(opts.designation);
+  let overridden: ZoningHit | null = null;
   if (override) {
     const level = hits.some((h) => h.level === "asemakaava") ? "asemakaava" : "yleiskaava";
-    const target = hits.filter((h) => h.level === level && !h.info).sort((a, b) => b.overlap_m2 - a.overlap_m2)[0];
+    // Rajapinnasta saatu merkintä on ensisijainen; myyjän valinta täydentää vain puuttuvan.
+    const target = hits.some((h) => h.level === level && h.info)
+      ? undefined
+      : hits.filter((h) => h.level === level).sort((a, b) => b.overlap_m2 - a.overlap_m2)[0];
     if (target) {
       target.info = override;
       target.designation = override.code;
+      overridden = target;
     }
   }
+  const overrideUsed = (h: ZoningHit) => h === overridden;
   const ak = hits.filter((h) => h.level === "asemakaava");
   const yk = hits.filter((h) => h.level === "yleiskaava");
   const checks: string[] = [];
-  if (override && hits.some((h) => h.designation === override.code && h.info === override)) {
-    checks.push(`Kaavamerkintä ${override.code} on myyjän kaavakartasta ilmoittama; varmista se kaavaotteesta.`);
+  if (overridden) {
+    checks.push(`Kaavamerkintä ${override!.code} on myyjän kaavakartasta ilmoittama; varmista se kaavaotteesta.`);
   }
 
   const pick = (rows: typeof hits) =>
@@ -250,6 +270,9 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
       rakennusoikeus: rak,
       documents,
       checks,
+      designation_source: info ? (overrideUsed(p) ? "myyja" : "rajapinta") : null,
+      designation_needed: !info,
+      designation_options: info ? [] : designationOptions("asemakaava"),
     };
   }
 
@@ -318,6 +341,9 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
       rakennusoikeus: rak,
       documents,
       checks,
+      designation_source: info ? (overrideUsed(p) ? "myyja" : "rajapinta") : null,
+      designation_needed: !info,
+      designation_options: info ? [] : designationOptions("yleiskaava", rule),
     };
   }
 
@@ -335,5 +361,8 @@ export function interpretZoning(summary: PropertySummary, opts: { designation?: 
     rakennusoikeus: noPlanText(""),
     documents,
     checks,
+    designation_source: null,
+    designation_needed: false,
+    designation_options: [],
   };
 }

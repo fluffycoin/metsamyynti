@@ -14,6 +14,7 @@ Mitään ei ole lähetetty. Ehdotettu järjestys:
 | 8 | Suomi.fi-palveluväylän liittyminen (kauppahintarekisterin rajapinta vaatii) | Eetu + Claude | 7 | 2–6 vk |
 | 9 | FTN-sopimus Iduran kanssa | Eetu | 5 | 1–2 vk |
 | 10 | Julkaise tietosuojaseloste ja käyttöehdot palvelussa | Claude | 6 | – |
+| 11 | Pyydä Espoon yleiskaavarajapinnan tunnukset ([06](06-espoo-kaavarajapinta.md)) ja lisää ne Supabasen salaisuuksiin | Eetu (tai Claude luvalla) | 1 | vastaus 1–3 vk |
 
 ## Avoimet kysymykset
 
