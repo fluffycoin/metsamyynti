@@ -41,7 +41,8 @@ Kaikki kunnat ja niiden Luken kantohinta-alueet ovat taulussa `municipalities`.
 ## Rajapinnat (Edge Functions)
 
 - `GET /functions/v1/property-summary?kt=837-585-11-181` – kiinteistön kooste (rajat, kuviot, kaavat, kantohinnat). Tulos tallennetaan kantaan ja haetaan uudelleen 30 päivän välein (`&refresh=1` pakottaa). Määräala: `?kt=224-404-1-30-M501`; jos määräalan rajoja ei ole rekisterissä, kooste tulee emokiinteistöltä ja `notes` kertoo sen.
-- `GET /functions/v1/property-at?lat=..&lon=..` – kartan klikkaus: pisteessä olevan kiinteistön tunnus ja palstan raja (WGS84).
+- `GET /functions/v1/property-at?lat=..&lon=..` – kartan klikkaus: pisteessä olevan kiinteistön tunnus, palstan raja (WGS84) ja `owner_info`.
+- Kunnan, valtion ja yhtiöiden maat: `owner_info` koosteessa ja kartalla, kiinnostukset estetty. Ks. `docs/omistajatyyppi.md`.
 - `GET /functions/v1/mml-tiles/{taso}/{z}/{y}/{x}` – MML:n karttakuvat (taustakartta, selkokartta, ortokuva, maastokartta, kiinteistojaotus, kiinteistotunnukset) ilman että API-avain näkyy selaimelle. Julkinen (ei JWT:tä).
 - `POST /functions/v1/sync-stumpage-prices` – päivittää Luken kantohinnat; ajastetaan viikoittain.
 - `GET /functions/v1/valuation?kt=...` – hinta-arvio: maan arvo + "Alustava/Vahvistettu puuston arvo", kaavan ja rakennusoikeuden tulkinta.

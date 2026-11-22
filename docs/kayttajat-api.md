@@ -171,6 +171,7 @@ await supabase.rpc('interests_sent');   // omat kiinnostukset, tila ja owner_rep
 | Kiinnostuksia kohteeseen vuorokaudessa kaikilta | 30 | `KOHTEEN_RAJA` |
 | Sähköposti vahvistettava | | `SAHKOPOSTI_VAHVISTAMATTA` |
 | Oma kiinteistö | | `OMA_KIINTEISTO` |
+| Kunnan, valtion, seurakunnan, yhtiön, yhdistyksen tai osakaskunnan maa (ks. [omistajatyyppi.md](omistajatyyppi.md)) | | `EI_YKSITYINEN_MAA` |
 
 Lähettäjä ei saa tietää, onko omistaja palvelussa, onko hän kieltäytynyt tai estänyt hänet.
 
