@@ -47,7 +47,7 @@ jobs:
           supabase link --project-ref "$PROJECT_REF" -p "$SUPABASE_DB_PASSWORD"
       - name: Tietokannan migraatiot
         if: steps.check.outputs.ready == 'true'
-        run: supabase db push -p "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --include-all -p "$SUPABASE_DB_PASSWORD"
       - name: Palvelinfunktiot
         if: steps.check.outputs.ready == 'true'
         run: |
