@@ -18,12 +18,17 @@ export type LandUse =
   | "metsatila_kokonais"
   | "rakennuspaikka"
   | "rakennusoikeus_kem2"
-  | "muu_maa";
+  | "muu_maa"
+  /** Sijaintiin perustuva maan kokonaisarvo (€/ha, puusto mukaan lukien) kasvukeskusten
+   *  läheisyydessä: raakamaan / odotusarvoisen maan hintataso. */
+  | "raakamaa"
+  /** Rakentamattoman rannan lisäarvo €/rantametri. */
+  | "ranta_m";
 
 export interface LandPrice {
   land_use: LandUse;
   eur: number;
-  unit: "eur_ha" | "eur_kpl" | "eur_kem2";
+  unit: "eur_ha" | "eur_kpl" | "eur_kem2" | "eur_m";
   scope: "kunta" | "maakunta" | "koko_maa";
   area_key: string;
   year: number | null;
@@ -129,10 +134,10 @@ export const FERTILITY_NAME: Record<number, string> = {
 };
 
 export interface LandPart {
-  type: "metsamaa" | "pelto" | "muu_maa" | "rakennuspaikka" | "rakennusoikeus";
+  type: "metsamaa" | "pelto" | "muu_maa" | "rakennuspaikka" | "rakennusoikeus" | "sijaintiarvo" | "ranta";
   label: string;
   quantity: number;
-  unit: "ha" | "kpl" | "k-m²";
+  unit: "ha" | "kpl" | "k-m²" | "m";
   unit_price_eur: number;
   value_eur: number;
   basis: string;
@@ -146,6 +151,18 @@ export interface LandResult {
   notes: string[];
 }
 
+const num0 = (n: number) => Math.round(n).toLocaleString("fi-FI").replace(/[\u00a0\u202f]/g, " ");
+
+/** Kaavan vaikutus sijainti- ja ranta-arvoon: rakentamisen estävä kaava laskee arvoa. */
+export function planFactor(k: KaavaResult): { factor: number; reason: string } {
+  const c = k.primary?.info?.category;
+  if (c === "suojelu") return { factor: 0.25, reason: "kaavassa suojelualue" };
+  if (c === "virkistys") return { factor: 0.4, reason: "kaavassa virkistysalue" };
+  if (c === "maa_metsatalous") return { factor: 0.6, reason: "kaavassa maa- ja metsätalousalue" };
+  if (c === "liikenne" || c === "erityis") return { factor: 0.5, reason: "kaavassa liikenne- tai erityisalue" };
+  return { factor: 1, reason: "" };
+}
+
 const RESIDENTIAL_TONTTI = (k: KaavaResult) =>
   k.status === "asemakaava" && k.building_right.residential && (k.building_right.m2 ?? 0) > 0;
 
@@ -155,6 +172,7 @@ export function computeLandValue(
   prices: Partial<Record<LandUse, LandPrice>>,
   input: LandUseInput,
   source: { id: string; name: string },
+  timberValueEur = 0,
 ): LandResult {
   const notes: string[] = [];
   const parts: LandPart[] = [];
@@ -262,6 +280,53 @@ export function computeLandValue(
         `Kiinteistöstä ${otherHa.toFixed(1).replace(".", ",")} ha on muuta kuin metsää. Jos osa on peltoa, ilmoita peltoala, niin arvio tarkentuu.`,
       );
     }
+  }
+
+  // 4) Sijaintiarvo: kasvukeskusten läheisyydessä maa myydään raakamaana, jonka hinta (€/ha,
+  //    puusto mukaan lukien) on moninkertainen metsä- tai peltomaahan nähden. Jos sijainnin
+  //    mukainen kokonaisarvo ylittää maa- ja metsätalousarvon (maa + puusto), maan arvoksi
+  //    tulee sijaintiarvo miinus puusto, jolloin puustoa ei lasketa kahdesti.
+  const loc = prices.raakamaa;
+  if (loc && rest > 0.01) {
+    const f = planFactor(kaava);
+    const locTotal = rest * loc.eur * f.factor;
+    const timberOnRest = timberValueEur * (total > 0 ? rest / total : 0);
+    const agriParts = parts.filter((p) => ["metsamaa", "pelto", "muu_maa"].includes(p.type));
+    const agriValue = agriParts.reduce((a, p) => a + p.value_eur, 0);
+    if (locTotal > agriValue + timberOnRest) {
+      for (const p of agriParts) parts.splice(parts.indexOf(p), 1);
+      parts.push({
+        type: "sijaintiarvo",
+        label: "Maapohja, sijaintiarvo",
+        quantity: rest,
+        unit: "ha",
+        unit_price_eur: Math.round((locTotal - timberOnRest) / rest),
+        value_eur: locTotal - timberOnRest,
+        basis: `alueen raakamaan hintataso ${num0(loc.eur)} €/ha (${loc.source})` +
+          (f.factor < 1 ? ` × ${f.factor.toString().replace(".", ",")} (${f.reason})` : "") +
+          `; puuston arvo vähennetty, koska sijaintiarvo sisältää puuston`,
+      });
+      if (f.factor === 1 && kaava.status !== "asemakaava") {
+        notes.push("Sijaintiarvo olettaa, että alueella on maankäytön odotusarvoa. Jos yleiskaava osoittaa alueen virkistykseen tai suojeluun, arvo on pienempi.");
+      }
+    }
+  }
+
+  // 5) Ranta: rakentamattoman rannan lisäarvo rantametreinä (myyjän ilmoittama).
+  if (input.shore_m && input.shore_m > 0 && prices.ranta_m) {
+    const p = prices.ranta_m;
+    const f = planFactor(kaava);
+    parts.push({
+      type: "ranta",
+      label: "Ranta",
+      quantity: input.shore_m,
+      unit: "m",
+      unit_price_eur: Math.round(p.eur * f.factor),
+      value_eur: input.shore_m * p.eur * f.factor,
+      basis: `rantaviivaa ${num0(input.shore_m)} m × ${num0(p.eur)} €/m (${p.source})` + (f.factor < 1 ? ` × ${String(f.factor).replace(".", ",")} (${f.reason})` : ""),
+    });
+  } else if (!input.shore_m && prices.ranta_m) {
+    notes.push("Jos kiinteistöllä on rantaa, ilmoita rantaviivan pituus: ranta nostaa arvoa merkittävästi.");
   }
 
   const value = parts.reduce((a, p) => a + p.value_eur, 0);

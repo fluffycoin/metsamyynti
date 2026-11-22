@@ -191,3 +191,60 @@ Deno.test("Espoo: Ryhdin yleiskaavaosuma ilman merkintää + myyjän ilmoittama 
   assertEquals(withAt.building_right.m2, 360);
   assert(withAt.checks.some((c) => c.includes("myyjän kaavakartasta")));
 });
+
+Deno.test("Espoo, Bodom: sijaintiarvo ylittää metsämaan arvon, puustoa ei lasketa kahdesti", () => {
+  const stands = [stand({ area_ha: 15 }), stand({ area_ha: 10.5, development_class: "03", volume_m3_ha: 200, sawlog_m3_ha: 90, pulp_m3_ha: 100 })];
+  const s = base({
+    kiinteistotunnus: "04940200050004", display_id: "49-402-5-4",
+    municipality: { code: "049", name: "Espoo", region_name: "Uusimaa", zoning_pilot: true },
+    area_ha: 28.6,
+    forest: { forest_ha: 25.5, total_volume_m3: 5850, stands },
+  });
+  const rows: LandPrice[] = [
+    ...PRICES,
+    { land_use: "raakamaa", eur: 30000, unit: "eur_ha", scope: "kunta", area_key: "049", year: null, source: "arvio: Espoo", is_estimate: true },
+    { land_use: "ranta_m", eur: 700, unit: "eur_m", scope: "kunta", area_key: "049", year: null, source: "arvio: Espoo", is_estimate: true },
+  ];
+  const prices = resolvePrices(rows, { municipality_code: "049", region_name: "Uusimaa" });
+  const v = valuate(s, prices, SRC, { land_use: { shore_m: 150 } });
+  const loc = v.land.parts.find((p) => p.type === "sijaintiarvo")!;
+  assert(loc, "sijaintiarvo käytössä");
+  assert(!v.land.parts.some((p) => p.type === "metsamaa"), "metsämaan maapohja korvautuu");
+  // maa + puusto = sijaintiarvo + ranta
+  assertAlmostEquals(v.computed_total_eur, 28.6 * 30000 + 150 * 700, 5);
+  assert(v.land.value_eur / 28.6 > 10000, "maan arvo yli 10 000 €/ha");
+  assertEquals(v.land.parts.find((p) => p.type === "ranta")!.value_eur, 105000);
+
+  // Lapissa sama kiinteistö: ei sijaintiarvoa
+  const lappi = base({ ...s, municipality: { code: "698", name: "Rovaniemi", region_name: "Lappi", zoning_pilot: false } });
+  const lv = valuate(lappi, resolvePrices([...rows, { land_use: "metsamaa_maapohja", eur: 170, unit: "eur_ha", scope: "maakunta", area_key: "Lappi", year: null, source: "arvio", is_estimate: true }], { municipality_code: "698", region_name: "Lappi" }), SRC);
+  assert(!lv.land.parts.some((p) => p.type === "sijaintiarvo"));
+  assert(lv.land.value_eur < v.land.value_eur / 50);
+});
+
+Deno.test("virkistysalueen kaava pienentää sijaintiarvoa", () => {
+  const s = base({
+    municipality: { code: "049", name: "Espoo", region_name: "Uusimaa", zoning_pilot: true },
+    area_ha: 10,
+    zoning: [{ level: "yleiskaava", plan_name: "YK", plan_id: null, approved_on: null, designation: "V", efficiency: null, building_right_m2: null, regulations: null, overlap_m2: 100000, source_layer: "x" }],
+  });
+  const prices = resolvePrices([{ land_use: "raakamaa", eur: 30000, unit: "eur_ha", scope: "kunta", area_key: "049", year: null, source: "arvio", is_estimate: true }, ...PRICES], { municipality_code: "049", region_name: "Uusimaa" });
+  const v = valuate(s, prices, SRC);
+  assertEquals(v.land.value_eur, 10 * 30000 * 0.4);
+});
+
+Deno.test("puutavaralajirivit erotellaan hakkuutavan mukaan", () => {
+  const t = computeTimberValue([stand({ area_ha: 2 }), stand({ area_ha: 2, development_class: "03" })], base({}).stumpage_prices);
+  const names = t.lines.map((l) => l.name);
+  assertEquals(new Set(names).size, names.length);
+  assert(names.includes("Kuusitukki (uudistushakkuu)") && names.includes("Kuusitukki (harvennushakkuu)"));
+});
+
+Deno.test("kantohintojen tuoreus", async () => {
+  const { stumpagePricesFresh, weekStart } = await import("../sources/luke.ts");
+  assertEquals(weekStart("2026W47")?.toISOString().slice(0, 10), "2026-11-16");
+  const now = new Date("2026-11-22T10:00:00Z");
+  assert(stumpagePricesFresh({ week: "2026W46", eur_m3: { "8021:N1": 70 } }, now));
+  assert(!stumpagePricesFresh({ week: "2026W40", eur_m3: { "8021:N1": 70 } }, now));
+  assert(!stumpagePricesFresh({ week: null, eur_m3: null }, now));
+});

@@ -54,6 +54,8 @@ export interface LandUseInput {
   building_sites?: number | null;
   /** Kaavamerkintä kaavakartasta (esim. "AT"), kun rajapinta ei kerro sitä. */
   designation?: string | null;
+  /** Rantaviivan pituus metreinä (myyjän ilmoittama). */
+  shore_m?: number | null;
 }
 
 /** Hyväksytty kolmannen osapuolen puustoarvio. */

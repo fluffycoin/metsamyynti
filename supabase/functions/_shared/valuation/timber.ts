@@ -95,6 +95,8 @@ function speciesShares(s: Stand): Record<SpeciesGroup, number> {
 
 export interface AssortmentLine {
   cutting_method: CuttingMethod;
+  /** "uudistushakkuu" | "harvennushakkuu" | "ensiharvennus" */
+  method_name: string;
   assortment: string;
   name: string;
   m3: number;
@@ -168,7 +170,17 @@ export function computeTimberValue(
         usedDefault ||= isDefault;
         const key = `${method}:${a}`;
         const line = lines.get(key) ??
-          { cutting_method: method, assortment: a, name: ASSORTMENT_NAME[a], m3: 0, eur_m3: p, value_eur: 0, default_price: isDefault };
+          {
+            cutting_method: method,
+            method_name: CUTTING_METHOD_NAME[method],
+            assortment: a,
+            // Sama puutavaralaji voi esiintyä kahdesti eri hakkuutavoilla (eri kuviot, eri kantohinta).
+            name: `${ASSORTMENT_NAME[a]} (${CUTTING_METHOD_NAME[method]})`,
+            m3: 0,
+            eur_m3: p,
+            value_eur: 0,
+            default_price: isDefault,
+          };
         line.m3 += m3;
         line.value_eur += m3 * p;
         lines.set(key, line);
@@ -180,7 +192,7 @@ export function computeTimberValue(
 
   if (usedDefault) {
     notes.push(
-      `Kantohinta-alueelta ${prices.price_area} ei ollut kaikkia Luken hintoja tietokannassa, joten osa puutavaralajeista on hinnoiteltu oletushinnoilla.`,
+      `Kantohinta-alueelta ${prices.price_area} ei saatu kaikkia Luken hintoja, joten osa puutavaralajeista on hinnoiteltu oletushinnoilla.`,
     );
   }
   const stumpage = [...lines.values()].reduce((a, l) => a + l.value_eur, 0);

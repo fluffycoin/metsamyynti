@@ -47,8 +47,9 @@ export function valuate(
   opts: { land_use?: LandUseInput; verified?: VerifiedTimber | null; seller?: SellerPrice | null } = {},
 ): Valuation {
   const kaava = interpretZoning(summary, { designation: opts.land_use?.designation });
-  const land = computeLandValue(summary, kaava, prices, opts.land_use ?? {}, priceSource);
   const timber = computeTimberValue(summary.forest.stands, summary.stumpage_prices);
+  const verifiedTimber = opts.verified?.timber_value_eur;
+  const land = computeLandValue(summary, kaava, prices, opts.land_use ?? {}, priceSource, verifiedTimber ?? timber.value_eur);
   const verified = opts.verified ?? null;
   const timberValue = verified ? Math.round(verified.timber_value_eur) : timber.value_eur;
   const status = verified ? "vahvistettu" : "alustava";

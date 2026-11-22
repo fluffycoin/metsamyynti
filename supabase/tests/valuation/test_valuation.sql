@@ -49,7 +49,7 @@ update public.properties set geom = st_multi(st_makeenvelope(390000, 6705000, 39
 :as_anon
 select vtests.ok((select count(distinct area_key) from public.land_price_reference where scope = 'maakunta') = 19,
   'hintatasot kaikille 19 maakunnalle');
-select vtests.ok((select count(*) from public.land_price_reference where scope = 'kunta') = 16,
+select vtests.ok((select count(*) from public.land_price_reference where scope = 'kunta' and land_use in ('rakennuspaikka', 'rakennusoikeus_kem2')) = 16,
   'pilottikunnille omat rakennusmaan hintatasot');
 select vtests.ok(not exists (
     select 1 from public.municipalities m where m.region_name is not null and not exists (
@@ -58,6 +58,11 @@ select vtests.ok(not exists (
 select vtests.ok((public.property_summary('85840100010010') -> 'municipality' ->> 'region_name') = 'Uusimaa',
   'property_summary palauttaa maakunnan');
 select vtests.ok((public.property_summary('85840100010010') ->> 'area_ha')::numeric = 16, 'property_summary: pinta-ala');
+select vtests.ok((select eur from public.land_price_reference where scope = 'kunta' and area_key = '049' and land_use = 'raakamaa') >
+  10 * (select eur from public.land_price_reference where scope = 'maakunta' and area_key = 'Lappi' and land_use = 'metsatila_kokonais'),
+  'Espoon raakamaan hintataso on moninkertainen Lapin metsätiloihin nähden');
+select vtests.ok((select count(*) from public.land_price_reference where land_use = 'ranta_m' and scope = 'maakunta') = 19,
+  'rannan lisäarvo kaikille maakunnille');
 select vtests.err(format('select public.set_seller_price(%s, 100000)', :tuusula), '42501', 'kirjautumaton ei voi asettaa hintaa');
 
 -- ---------------------------------------------------------------------------
@@ -74,7 +79,8 @@ select public.set_seller_price(:tuusula, 250000.4, null, null, 'Hyvät tieyhteyd
 select vtests.ok((select total_eur from public.seller_price_estimates where property_id = :tuusula) = 250000, 'myyjän hinta tallentuu');
 select public.set_seller_price(:tuusula, 260000);
 select vtests.ok((select total_eur from public.seller_price_estimates where property_id = :tuusula) = 260000, 'myyjän hinta päivittyy');
-select public.set_property_land_use(:tuusula, 3.5, 1, ' at ');
+select public.set_property_land_use(:tuusula, 3.5, 1, ' at ', 120);
+select vtests.ok((select shore_m from public.property_land_use where property_id = :tuusula) = 120, 'rantaviivan pituus tallentuu');
 select vtests.ok((select designation from public.property_land_use where property_id = :tuusula) = 'AT', 'kaavamerkintä normalisoidaan');
 select vtests.err(format('select public.set_property_land_use(%s, 50, null)', :tuusula), 'VIRHEELLINEN_ALA', 'peltoala ei voi ylittää pinta-alaa');
 select vtests.err(format('select public.submit_timber_verification(%s, %L, %L, 120000)', :tuusula, 'toinen/a.pdf', 'MHY'),
@@ -101,7 +107,15 @@ select vtests.ok(public.review_timber_verification(:'v2', true, null) = 'hyvaksy
 select vtests.ok((public.valuation_inputs(:tuusula) -> 'verified' ->> 'timber_value_eur')::numeric = 125000,
   'hyväksytty arvio menee hinta-arvion syötteisiin');
 select vtests.ok((public.valuation_inputs(:tuusula) -> 'seller' ->> 'total_eur')::numeric = 260000
-  and (public.valuation_inputs(:tuusula) -> 'land_use' ->> 'designation') = 'AT', 'myyjän hinta ja maankäyttö syötteissä');
+  and (public.valuation_inputs(:tuusula) -> 'land_use' ->> 'designation') = 'AT'
+  and (public.valuation_inputs(:tuusula) -> 'land_use' ->> 'shore_m')::numeric = 120, 'myyjän hinta ja maankäyttö syötteissä');
+-- Kantohinnat: uusimmalta viikolta puuttuva hinta otetaan edelliseltä viikolta.
+insert into public.stumpage_prices (week, price_area, cutting_method, assortment, eur_m3) values
+  ('2026W45', '1', '8021', 'N1', 71), ('2026W45', '1', '8021', 'N2', 75),
+  ('2026W46', '1', '8021', 'N1', 73), ('2026W46', '1', '8021', 'N2', null);
+select vtests.ok((public.property_summary('85840100010010') -> 'stumpage_prices' -> 'eur_m3' ->> '8021:N1')::numeric = 73
+  and (public.property_summary('85840100010010') -> 'stumpage_prices' -> 'eur_m3' ->> '8021:N2')::numeric = 75,
+  'kantohinta: uusin saatavilla oleva hinta puutavaralajeittain');
 insert into public.valuations (property_id, land_value_eur, timber_value_eur, timber_status, land_source, method)
 values (:tuusula, 10000, 125000, 'vahvistettu', 'reference', '{"display":{"label":"Hinta-arvio"}}');
 
