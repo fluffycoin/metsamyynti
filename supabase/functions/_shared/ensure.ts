@@ -4,6 +4,7 @@
  */
 import type { Kiinteistotunnus } from "./kiinteistotunnus.ts";
 import { collectPropertyData, NotFoundError } from "./lookup.ts";
+import { checkMunicipalOwnership } from "./sources/omistus.ts";
 
 export const MAX_AGE_DAYS = 30;
 
@@ -60,6 +61,9 @@ export async function ensureProperty(db: any, kt: Kiinteistotunnus, refresh = fa
       p_maarala_no: data.storedAs.maarala_no,
     });
     if (upErr) throw new HttpError(500, upErr.message);
+
+    // Kunnan maa (avoin maanomistuskartta): vain koko kiinteistölle, ei määräalalle
+    if (!data.storedAs.maarala_no) await checkMunicipalOwnership(db, kt.long, data.geometry);
 
     const { error: stErr } = await db.rpc("replace_forest_stands", {
       p_property_id: propertyId,
