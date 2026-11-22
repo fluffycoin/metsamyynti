@@ -52,7 +52,8 @@ jobs:
         if: steps.check.outputs.ready == 'true'
         run: |
           # Selaimen uudelleenohjauksella kutsuttavat funktiot ilman JWT-tarkistusta
-          public="strong-auth-callback strong-auth-jwks"
+          # mml-tiles: karttakirjasto hakee kuvat ilman otsakkeita
+          public="strong-auth-callback strong-auth-jwks mml-tiles"
           for dir in supabase/functions/*/; do
             name=$(basename "$dir")
             case "$name" in _*) continue ;; esac

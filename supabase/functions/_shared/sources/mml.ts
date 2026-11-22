@@ -87,3 +87,49 @@ export async function fetchMaarala(kiinteistotunnus14: string, maarala: string, 
     display: (fc.features[0].properties.maaraalatunnuksenEsitysmuoto as string) ?? null,
   };
 }
+
+/** Pisteen (x, y) sisältyminen renkaaseen (ray casting). */
+export function pointInRing(x: number, y: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+export function pointInPolygon(x: number, y: number, rings: number[][][]): boolean {
+  return pointInRing(x, y, rings[0]) && !rings.slice(1).some((h) => pointInRing(x, y, h));
+}
+
+/** Kiinteistö pisteessä (WGS84). Palauttaa palstan rajan WGS84:nä. */
+export async function findParcelAt(
+  lat: number,
+  lon: number,
+  apiKey: string,
+): Promise<{ kiinteistotunnus: string; display: string; geometry: { type: "Polygon"; coordinates: number[][][] } } | null> {
+  const d = 0.00002; // n. 1–2 m
+  const u = new URL(`${MML_KIINTEISTO_API}/collections/PalstanSijaintitiedot/items`);
+  u.searchParams.set("f", "json");
+  u.searchParams.set("limit", "50");
+  u.searchParams.set("bbox", [lon - d, lat - d, lon + d, lat + d].join(","));
+  u.searchParams.set("api-key", apiKey);
+  let fc: FeatureCollection;
+  try {
+    fc = await fetchJson<FeatureCollection>(u.toString());
+  } catch (e) {
+    throw new Error((e as Error).message.replaceAll(apiKey, "***"));
+  }
+  for (const f of fc.features) {
+    if (f.geometry?.type !== "Polygon") continue;
+    const rings = f.geometry.coordinates as number[][][];
+    if (pointInPolygon(lon, lat, rings)) {
+      return {
+        kiinteistotunnus: String(f.properties.kiinteistotunnus),
+        display: String(f.properties.kiinteistotunnuksenEsitysmuoto),
+        geometry: { type: "Polygon", coordinates: rings },
+      };
+    }
+  }
+  return null;
+}
