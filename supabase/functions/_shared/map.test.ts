@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { parseTilePath } from "../mml-tiles/index.ts";
+import { parseTilePath, tileInFinland } from "../mml-tiles/index.ts";
 import { pointInPolygon } from "./sources/mml.ts";
 
 Deno.test("tile path", () => {
@@ -14,4 +14,11 @@ Deno.test("point in polygon with hole", () => {
   assertEquals(pointInPolygon(1, 1, sq), true);
   assertEquals(pointInPolygon(5, 5, sq), false);
   assertEquals(pointInPolygon(11, 5, sq), false);
+});
+
+Deno.test("tiles outside Finland are skipped", () => {
+  assertEquals(tileInFinland(16, 18885, 37379), true); // Sipoo
+  assertEquals(tileInFinland(5, 8, 18), true);
+  assertEquals(tileInFinland(10, 340, 511), false); // Pariisi
+  assertEquals(tileInFinland(0, 0, 0), true); // koko maailma sisältää Suomen
 });

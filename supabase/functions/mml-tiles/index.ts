@@ -35,11 +35,24 @@ export function parseTilePath(pathname: string): { layer: string; z: number; y: 
   return { layer: m[1], z, y, x };
 }
 
+/** Suomi ja lähialue (lon/lat). Tämän ulkopuolisia ruutuja ei haeta MML:ltä. */
+const FINLAND = { west: 15, south: 58, east: 36, north: 71.5 };
+
+export function tileInFinland(z: number, y: number, x: number): boolean {
+  const n = 2 ** z;
+  const lon = (xx: number) => (xx / n) * 360 - 180;
+  const lat = (yy: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * yy) / n))) * 180) / Math.PI;
+  return lon(x + 1) > FINLAND.west && lon(x) < FINLAND.east && lat(y) > FINLAND.south && lat(y + 1) < FINLAND.north;
+}
+
 if (import.meta.main) {
   Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const t = parseTilePath(new URL(req.url).pathname);
     if (!t) return new Response("Tuntematon karttataso tai ruutu", { status: 404, headers: cors });
+    if (!tileInFinland(t.z, t.y, t.x)) {
+      return new Response(null, { status: 204, headers: { ...cors, "cache-control": "public, max-age=604800" } });
+    }
     const apiKey = Deno.env.get("MML_API_KEY");
     if (!apiKey) return new Response("MML_API_KEY puuttuu", { status: 500, headers: cors });
 
