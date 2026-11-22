@@ -56,6 +56,15 @@ Tallennetun arvion voi lukea myöhemmin ilman uudelleenlaskentaa:
 `supabase.rpc('latest_valuation', { p_property_id })` (omistaja, tai kuka tahansa, jos kiinteistö on
 julkaistussa ilmoituksessa). Erittely on kentässä `details`.
 
+**Maan arvon osat** (`land.parts[].type`): `metsamaa`, `pelto`, `muu_maa`, `sijaintiarvo`
+(kasvukeskusten lähellä: raakamaan hintataso, josta puuston arvo on vähennetty), `ranta`,
+`rakennuspaikka`, `rakennusoikeus`. Näytä jokaisesta `label`, `quantity` + `unit`, `unit_price_eur`,
+`value_eur` ja pienellä tekstillä `basis` (laskennan peruste ja lähde).
+
+Puuston rivit (`timber.lines`): `name` sisältää hakkuutavan, esim. "Kuusitukki (uudistushakkuu)".
+Sama puutavaralaji voi esiintyä kahdesti, koska eri kuviot hinnoitellaan eri hakkuutavan
+kantohinnalla (uudistuskypsät uudistushakkuun, kasvatusmetsät harvennuksen hinnalla).
+
 **Merkinnät näkymässä:**
 - `timber.label` näytetään sellaisenaan: "Alustava puuston arvo" tai "Vahvistettu puuston arvo".
 - Jos `display.label` on "Myyjän hinta-arvio", näytä se pääarvona ja `computed_total_eur` vertailuna
@@ -67,11 +76,12 @@ julkaistussa ilmoituksessa). Erittely on kentässä `details`.
 |---|---|
 | Oma hinta-arvio | `rpc('set_seller_price', { p_property_id, p_total_eur, p_land_value_eur?, p_timber_value_eur?, p_note? })` |
 | Palaa laskettuun arvioon | `rpc('set_seller_price', { p_property_id, p_total_eur: null })` |
-| Peltoala, rakennuspaikat, kaavamerkintä | `rpc('set_property_land_use', { p_property_id, p_field_ha, p_building_sites, p_designation })` |
+| Peltoala, rakennuspaikat, kaavamerkintä, ranta | `rpc('set_property_land_use', { p_property_id, p_field_ha, p_building_sites, p_designation, p_shore_m })` |
 | Vahvistettu puuston arvo | ks. alla |
 | Pyydä puustoarvio (toimeksiantopyyntö) | `rpc('request_timber_appraisal', { p_property_id, p_phone?, p_message? })` |
 
-`set_property_land_use`: arvo `null` tarkoittaa "ei tiedossa". Peltoalaa ei saada avoimesta datasta,
+`set_property_land_use`: arvo `null` tarkoittaa "ei tiedossa". `p_shore_m` on rantaviivan pituus
+metreinä; ranta lisää arvoa alueen €/rantametri-tason mukaan. Peltoalaa ei saada avoimesta datasta,
 joten jos `notes` pyytää sitä, näytä kenttä. Kaavamerkintä (esim. `AT`) kannattaa kysyä, kun
 `kaava.checks` kertoo, ettei merkintä ole saatavilla sähköisesti (esim. Espoon yleiskaavat):
 silloin rakennusoikeus lasketaan kunnan rakennusjärjestyksen mukaan.

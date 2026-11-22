@@ -3,6 +3,7 @@
  */
 import { ensureProperty } from "../ensure.ts";
 import { parseKiinteistotunnus } from "../kiinteistotunnus.ts";
+import { stumpagePricesFresh, syncStumpagePrices } from "../sources/luke.ts";
 import { landPriceSource } from "./land.ts";
 import type { PropertySummary } from "./types.ts";
 import { valuate, Valuation } from "./valuate.ts";
@@ -29,7 +30,18 @@ export async function runValuation(
   kt: ReturnType<typeof parseKiinteistotunnus>,
   opts: { includePrivate: boolean; store: boolean; userId?: string | null; refresh?: boolean },
 ): Promise<ValuationRun> {
-  const ensured = await ensureProperty(db, kt, opts.refresh);
+  let ensured = await ensureProperty(db, kt, opts.refresh);
+  const notes = [...ensured.notes];
+
+  // Kantohinnat: jos kannassa ei ole tuoreita Luken hintoja (viikkoajo puuttuu), haetaan ne nyt.
+  if (!stumpagePricesFresh(ensured.summary?.stumpage_prices)) {
+    try {
+      await syncStumpagePrices(db);
+      ensured = { ...ensured, summary: (await ensureProperty(db, kt)).summary };
+    } catch (e) {
+      notes.push(`Luken kantohintojen päivitys epäonnistui (${(e as Error).message}).`);
+    }
+  }
   const summary = ensured.summary as ValuationRun["summary"];
 
   let inputs: { land_use?: unknown; seller?: unknown; verified?: unknown } = {};
@@ -40,7 +52,6 @@ export async function runValuation(
   }
 
   const source = landPriceSource(db);
-  const notes = [...ensured.notes];
   let prices = {};
   try {
     prices = await source.prices({ municipality_code: summary.municipality.code, region_name: summary.municipality.region_name ?? null });
@@ -49,11 +60,11 @@ export async function runValuation(
   }
 
   const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-  const lu = inputs.land_use as { field_ha?: unknown; building_sites?: unknown; designation?: unknown } | null | undefined;
+  const lu = inputs.land_use as { field_ha?: unknown; building_sites?: unknown; designation?: unknown; shore_m?: unknown } | null | undefined;
   const sel = inputs.seller as Record<string, unknown> | null | undefined;
   const ver = inputs.verified as Record<string, unknown> | null | undefined;
   const valuation = valuate(summary, prices, { id: source.id, name: source.name }, {
-    land_use: lu ? { field_ha: n(lu.field_ha), building_sites: n(lu.building_sites), designation: (lu.designation as string) ?? null } : {},
+    land_use: lu ? { field_ha: n(lu.field_ha), building_sites: n(lu.building_sites), designation: (lu.designation as string) ?? null, shore_m: n(lu.shore_m) } : {},
     seller: sel
       ? {
         total_eur: Number(sel.total_eur),
